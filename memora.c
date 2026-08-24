@@ -1,6 +1,6 @@
 #include "memora.h"
 
-// Set to false to stop the accept loop in initserver().
+// Set to false to stop the accept loop in initserver()
 bool s_continuation;
 bool c_continuation;
 
@@ -17,8 +17,69 @@ void zero(int8 *buffer, int16 size)
     return;
 }
 
-void child_loop(Client *cli) {
-    sleep(1);
+#define MAX_TOKENS 10
+
+
+int split(int8 *buffer, int8 *tokens[], int8 max_tokens)
+{
+    int8 token_count = 0;
+    int8 *p = buffer;
+
+    // Continue loop till end of line or where it exceeds the number of tokens allowed
+    while (*p != '\0' && token_count < max_tokens)
+    {
+        // Another while loop that moves through the buffer
+        // First we skip all empty spaces
+        while (*p == ' ' || *p == '\n')
+        {
+            p++;
+        }
+
+        if (*p == '\0')
+        {
+            break;
+        }
+
+        tokens[token_count] = p;
+        token_count++;
+
+        // Find end of token
+        while (*p != '\0' && *p != ' ' && *p != '\n')
+        {
+            p++;
+        }
+
+        // Terminate token
+        if (*p != '\0')
+        {
+            *p = '\0';
+            p++;
+        }
+    }
+
+    return token_count;
+}
+
+void child_loop(Client *client)
+{
+    int8 buffer[256];
+    int8 *tokens[MAX_TOKENS];
+    int8 token_count;
+
+    zero(buffer, 256);
+    read(client->fd, buffer, 255);
+
+    token_count = split(buffer, tokens, MAX_TOKENS);
+
+    for (int8 i = 0; i < token_count; i++)
+    {
+        printf("[%d] %s\n", i, (char *)tokens[i]);
+    }
+    fflush(stdout);
+
+    char *ack = "OK\n";
+    write(client->fd, ack, strlen(ack));
+
     return;
 }
 
@@ -52,19 +113,25 @@ void mainloop(int server_fd)
     client = (Client *)malloc(sizeof(struct s_client));
     assert(client);
 
-    zero((Client *)client, sizeof(struct s_client));
-    client->fd = server_fd;
+    zero((int8 *)client, sizeof(struct s_client));
+    client->fd = client_fd;
     client->port = port;
     strncpy(client->ip, ip, 15);
 
     pid = fork();
 
-    if (pid) {
+    if (pid)
+    {
+        // Parent Process - Free to accept more connections
         free(client);
         return;
-    } else {
+    }
+    else
+    {
+        // Child Process - Handle that particular client
         c_continuation = true;
-        printf("100 Coneected to memora");
+        printf("Status:100 - Connected to Memora\n");
+        fflush(stdout);
         while (c_continuation)
         {
             child_loop(client);
