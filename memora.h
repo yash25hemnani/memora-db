@@ -31,5 +31,22 @@ struct s_client {
 
 typedef struct s_client Client;
 
+enum {
+    CMD_OK       = 0,
+    CMD_ERR_ARGS = 1,
+};
+
+// Client FD, folder name, args array
+typedef int32 (*Callback)(Client *, int32 argc, int8 argv[][64]);
+
+struct s_cmdhandler {
+    int8 *cmd;
+    int8 min_args;   // Excluding cmd
+    int8 max_args;   // Excluding cmd
+    Callback handler;
+};
+
+typedef struct s_cmdhandler CmdHandler;
+
 #endif
 

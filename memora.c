@@ -4,6 +4,61 @@
 bool s_continuation;
 bool c_continuation;
 
+int32 ping_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    // This command should not have any arguments
+    if (argc != 0)
+    {
+        char *msg = "ERR: Too many arguments\n";
+        write(client->fd, msg, strlen(msg));
+        return CMD_OK;
+    }
+
+    char *msg = "pong";
+    write(client->fd, msg, strlen(msg));
+    return CMD_ERR_ARGS;
+}
+
+CmdHandler handlers[] = {
+    {(int8 *)"ping", 0, 0, ping_handler}};
+
+// Get pointer to that function
+CmdHandler *get_handler(int8 *command)
+{
+    int count = sizeof(handlers) / sizeof(handlers[0]);
+
+    for (int8 i = 0; i < count; i++)
+    {
+        if (strcmp((char *)handlers[i].cmd, (char *)command) == 0)
+        {
+            return &handlers[i];
+        }
+    }
+
+    return NULL;
+}
+
+int8 verify_arg_counts(Client *client, int8 token_count, int8 max_args, int8 min_args)
+{
+    if (token_count > max_args)
+    {
+        char *err_msg = "Too many arguments\n";
+        write(client->fd, err_msg, strlen(err_msg));
+        return 0;
+    }
+
+    if (token_count < min_args)
+    {
+        char *err_msg = "Too less arguments\n";
+        write(client->fd, err_msg, strlen(err_msg));
+        return 0;
+    }
+
+    char *msg = "Verified\n";
+    write(client->fd, msg, strlen(msg));
+    return 1;
+}
+
 void zero(int8 *buffer, int16 size)
 {
     int8 *p;
@@ -18,7 +73,7 @@ void zero(int8 *buffer, int16 size)
 }
 
 #define MAX_TOKENS 10
-
+#define MAX_ARGS (MAX_TOKENS - 2)
 
 int split(int8 *buffer, int8 *tokens[], int8 max_tokens)
 {
@@ -65,9 +120,19 @@ void child_loop(Client *client)
     int8 buffer[256];
     int8 *tokens[MAX_TOKENS];
     int8 token_count;
+    int8 cmd[16];
+    int8 args[MAX_ARGS][64];
+    int n;
 
     zero(buffer, 256);
-    read(client->fd, buffer, 255);
+    n = read(client->fd, buffer, 255);
+
+    if (n <= 0)
+    {
+        // Client disconnected (n == 0) or read failed (n < 0); stop this connection.
+        c_continuation = false;
+        return;
+    }
 
     token_count = split(buffer, tokens, MAX_TOKENS);
 
@@ -77,8 +142,46 @@ void child_loop(Client *client)
     }
     fflush(stdout);
 
+    // Check if token count is zero
+    if (token_count < 1)
+    {
+        char *err = "ERR\n";
+        write(client->fd, err, strlen(err));
+        return;
+    }
+
+    // Store the command
+    zero(cmd, 16);
+    strncpy((char *)cmd, (char *)tokens[0], 15);
+
+    // Use the get handler to decide what data it needs
+    CmdHandler *handler = get_handler(cmd);
+
+    if (handler == NULL)
+    {
+        char *err = "ERR: Unknown command\n";
+        write(client->fd, err, strlen(err));
+        return;
+    }
+
+    // Verify arg counts
+    int8 argc = token_count - 1;
+    int8 verify = verify_arg_counts(client, argc, handler->max_args, handler->min_args);
+
+    if (!verify)
+        return;
+
+    // Arguments
+    for (int8 i = 0; i < argc; i++)
+    {
+        zero(args[i], 64);
+        strncpy((char *)args[i], (char *)tokens[i+1], 63);
+    }
+    
     char *ack = "OK\n";
     write(client->fd, ack, strlen(ack));
+
+    handler->handler(client, argc, args);
 
     return;
 }
@@ -130,8 +233,9 @@ void mainloop(int server_fd)
     {
         // Child Process - Handle that particular client
         c_continuation = true;
-        printf("Status:100 - Connected to Memora\n");
-        fflush(stdout);
+        char *status = "Status:100 - Connected to Memora\n";
+        write(client->fd, status, strlen(status));
+
         while (c_continuation)
         {
             child_loop(client);
