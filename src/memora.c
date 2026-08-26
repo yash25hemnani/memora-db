@@ -1,4 +1,5 @@
 #include "memora.h"
+#include "tree.h"
 
 // Set to false to stop the accept loop in initserver()
 bool s_continuation;
@@ -14,13 +15,45 @@ int32 ping_handler(Client *client, int32 argc, int8 argv[][64])
         return CMD_OK;
     }
 
-    char *msg = "pong";
+    char *msg = "pong\n";
     write(client->fd, msg, strlen(msg));
     return CMD_ERR_ARGS;
 }
 
+int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    // This command should not have any arguments
+    if (argc != 0)
+    {
+        char *msg = "ERR: Too many arguments\n";
+        write(client->fd, msg, strlen(msg));
+        return CMD_ERR_ARGS;
+    }
+    
+    char *msg = "Printing Tree...\n";
+    write(client->fd, msg, strlen(msg));
+    print_tree(client, &root);
+    return CMD_OK;
+}
+
+void create_node_handler(Client *client, int32 argc, int8 argv[][64]) {
+    // Accepets two args - path and folder
+    int8 *parent_path = argv[0];
+    int8 *path = argv[1];
+
+    Node *node = find_node(parent_path);
+
+    if (node) {
+        char *msg = "New node created successfully!\n";
+        write(client->fd, msg, strlen(msg));
+    }
+}
+
 CmdHandler handlers[] = {
-    {(int8 *)"ping", 0, 0, ping_handler}};
+    {(int8 *)"ping", 0, 0, ping_handler},
+    {(int8 *)"tree", 0, 0, tree_handler},
+    {(int8 *)"create-node", 2, 2, create_node_handler},
+};
 
 // Get pointer to that function
 CmdHandler *get_handler(int8 *command)
@@ -54,66 +87,11 @@ int8 verify_arg_counts(Client *client, int8 token_count, int8 max_args, int8 min
         return 0;
     }
 
-    char *msg = "Verified\n";
-    write(client->fd, msg, strlen(msg));
     return 1;
-}
-
-void zero(int8 *buffer, int16 size)
-{
-    int8 *p;
-    int16 n;
-
-    for (n = 0, p = buffer; n < size; n++, p++)
-    {
-        *p = 0;
-    }
-
-    return;
 }
 
 #define MAX_TOKENS 10
 #define MAX_ARGS (MAX_TOKENS - 2)
-
-int split(int8 *buffer, int8 *tokens[], int8 max_tokens)
-{
-    int8 token_count = 0;
-    int8 *p = buffer;
-
-    // Continue loop till end of line or where it exceeds the number of tokens allowed
-    while (*p != '\0' && token_count < max_tokens)
-    {
-        // Another while loop that moves through the buffer
-        // First we skip all empty spaces
-        while (*p == ' ' || *p == '\n')
-        {
-            p++;
-        }
-
-        if (*p == '\0')
-        {
-            break;
-        }
-
-        tokens[token_count] = p;
-        token_count++;
-
-        // Find end of token
-        while (*p != '\0' && *p != ' ' && *p != '\n')
-        {
-            p++;
-        }
-
-        // Terminate token
-        if (*p != '\0')
-        {
-            *p = '\0';
-            p++;
-        }
-    }
-
-    return token_count;
-}
 
 void child_loop(Client *client)
 {
@@ -134,7 +112,7 @@ void child_loop(Client *client)
         return;
     }
 
-    token_count = split(buffer, tokens, MAX_TOKENS);
+    token_count = split(' ', buffer, tokens, MAX_TOKENS);
 
     for (int8 i = 0; i < token_count; i++)
     {
@@ -178,9 +156,6 @@ void child_loop(Client *client)
         strncpy((char *)args[i], (char *)tokens[i+1], 63);
     }
     
-    char *ack = "OK\n";
-    write(client->fd, ack, strlen(ack));
-
     handler->handler(client, argc, args);
 
     return;

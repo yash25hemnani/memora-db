@@ -1,9 +1,9 @@
 /* binary_tree.h */
 
-/*
- * _GBU_SOURCE is defined so the system headers below expose their
- * GNU/POSIX extensions before any of them are included.
- */
+#ifndef TREE_H
+#define TREE_H
+
+// _GBU_SOURCE is defined so the system headers below expose their GNU/POSIX extensions before any of them are included.
 #define _GBU_SOURCE
 #include <stdio.h>
 #include <unistd.h>
@@ -13,13 +13,10 @@
 #include <assert.h>   // assert() enforces preconditions (e.g. non-null `parent` args)
 #include <errno.h>    // errno reports *why* a lookup failed, set by reterr() below
 
-/*
- * Tag bits identify which member of the `Tree` union (defined further down)
- * a given block of memory currently holds. Each tag occupies its own bit so
- * tags can be combined with OR and tested with AND -- the root node is
- * tagged (TagRoot | TagNode) so a plain `tag & TagNode` check still
- * recognizes it as a node without needing a special case.
- */
+#include "memora.h"   // Client, used by print_tree()
+#include "utils.h"    // zero(), split()
+
+// Tag bits identify which member of the `Tree` union a block of memory holds; each occupies its own bit so tags can be OR'd and tested with AND.
 #define TagRoot     1 // 00 01
 #define TagNode     2 // 00 10
 #define TagLeaf     4 // 01 00
@@ -28,24 +25,15 @@
 // "nothing went wrong, there's just nothing here" apart from a real error.
 #define NoError     0
 
-/*
- * `nullptr` itself can't be used as an identifier -- it's a reserved
- * keyword as of C23 -- so null_ptr is this codebase's stand-in "null"
- * value, returned by reterr() on failure paths.
- */
+// `nullptr` can't be used as an identifier as of C23, so null_ptr is this codebase's stand-in "null" value, returned by reterr().
 typedef void* Nullptr;
-Nullptr null_ptr = 0;
+extern Nullptr null_ptr;
 
 // Alias so call sites don't need to know/remember the "_linear" search
 // variant is currently the only implementation of "find the last leaf".
 #define find_last(x)    find_last_linear(x);
 
-/*
- * reterr(x) centralizes the "record why, then bail out with null" pattern
- * used by lookup functions. It's wrapped in do { } while (0) so the macro
- * expands to a single statement -- safe to use directly inside an unbraced
- * `if (cond) reterr(x);` without swallowing a following `else`.
- */
+// reterr(x) records why, then bails out with null; wrapped in do{}while(0) so it expands to a single statement.
 #define reterr(x) \
     do { errno = (x); return null_ptr; } while (0)
 
@@ -65,12 +53,7 @@ typedef unsigned char Tag;   // One byte is enough to hold any combination of th
     int32 → 32 bits (4 bytes)
 */
 
-/*
- * Node = one level of a path hierarchy (think: a directory). Nodes link to
- * each other to form the path tree (uplink/left); each node additionally
- * owns a singly linked list of Leaf key/value entries hanging off it
- * (right), which behave like the files inside that directory.
- */
+// Node = one level of a path hierarchy (a directory); it links via uplink/left and owns a Leaf list (right) like files in that directory.
 struct s_node
 {
     Tag tag;                    // TagNode, or (TagRoot | TagNode) for the single root node
@@ -82,15 +65,9 @@ struct s_node
 
 typedef struct s_node Node;
 
-/*
- * Leaf = one key/value entry attached to a Node (think: a file inside a
- * directory). Leaves belonging to the same Node are chained via `right`;
- * `left` points backward -- to the owning Node for the first leaf in the
- * chain, or to the previous Leaf otherwise -- so the chain is walkable in
- * both directions without a separate "owner" field.
- */
+// Leaf = one key/value entry on a Node (a file); leaves chain via `right`, and `left` points back to the owning Node or previous Leaf.
 struct s_leaf {
-    Tag tag;                    // Always TagLeaf
+    Tag tag;                    
     union u_tree *left;          // Back-reference: owning Node (first leaf) or previous Leaf
     struct s_leaf *right;        // Next Leaf under the same Node, or NULL if this is the last
     int8 key[128];               // Lookup key for this entry
@@ -100,17 +77,22 @@ struct s_leaf {
 
 typedef struct s_leaf Leaf;
 
-/*
- * Tree overlays Node and Leaf in the same memory region so one pointer
- * type can reference either kind of struct; the shared leading `tag`
- * field (present in both s_node and s_leaf) tells the reader which member
- * is actually valid -- i.e. this is a hand-rolled tagged union / variant
- * record, which is why `left` pointers above are typed `union u_tree *`
- * instead of `Node *` or `Leaf *`.
- */
+// Tree overlays Node and Leaf so one pointer type references either; the shared `tag` field tells which member is valid.
 union u_tree {
     Node node;
     Leaf leaf;
 };
 
 typedef union u_tree Tree;
+
+// The single global root of the tree (defined in tree.c).
+extern Tree root;
+
+void print_tree(Client *client, Tree *_root);
+int8 *indent(int16 n);
+Node *create_node(Node *parent, int8 *path);
+Node *find_node(int8 *path);
+Leaf *find_last_linear(Node *parent);
+Leaf *create_leaf(Node *parent, int8 *key, int8 *value, int16 count);
+
+#endif
