@@ -64,10 +64,6 @@ void print_node(Client *client, Node *node, int16 depth)
 
    switch (node->tag)
    {
-   case TagRoot:
-      write_to_client(client, (char *)"root: ");
-      break;
-
    case TagNode:
       write_to_client(client, (char *)"child: ");
       break;
@@ -117,6 +113,15 @@ Node *find_node(Client *client, Node *node, int8 *path)
       return child_node;
 
    return NULL;
+}
+
+void free_tree(Node *node){
+   if (node == NULL) return;
+
+   free_tree(node->left);
+   free_tree(node->sibling);
+
+   free(node);
 }
 
 void add_node(Client *client, int8 *path)
@@ -215,7 +220,7 @@ void add_node(Client *client, int8 *path)
 
       *node->left->sibling = (Node){
           .tag = TagSibling,
-          .uplink = node,
+          .uplink = node->left,
           .left = NULL,
           .sibling = NULL,
           .leaves = NULL,
@@ -252,7 +257,7 @@ void add_node(Client *client, int8 *path)
 
    *sibling->sibling = (Node){
        .tag = TagSibling,
-       .uplink = node,
+       .uplink = sibling,
        .left = NULL,
        .sibling = NULL,
        .leaves = NULL,
@@ -262,4 +267,83 @@ void add_node(Client *client, int8 *path)
 
    char *msg = "SUCCESS: Added a sibling to the node\n";
    write(client->fd, msg, strlen(msg));
+}
+
+void remove_node(Client *client, int8 *path)
+{
+   // Removes all childs // Possibly store in a recycle bin
+   if (strcmp((char *)path, (char *)"/") == 0)
+   {
+      char *err = "ERR: Can't remove root node. \n";
+      write_to_client(client, err);
+      return;
+   }
+
+   // We will split the path
+   int8 buffer[256];
+   int8 *tokens[32];
+
+   zero(buffer, 256);
+   strcpy((char *)buffer, (char *)path);
+
+   int token_count = split('/', buffer, tokens, 32);
+
+   // No path specified
+   if (token_count == 0)
+   {
+      char *err = "ERR: Invalid Path.\n";
+      write(client->fd, err, strlen(err));
+      return;
+   }
+
+   Node *node = &root.node;
+   int i = token_count;
+
+   while (i > 0)
+   {
+      int8 path_buffer[256];
+      prepend('/', path_buffer, tokens[token_count - i]);
+
+      node = find_node(client, &root.node, path_buffer);
+
+      if (!node)
+      {
+         char *err = "ERR: Node not found.\n";
+         write(client->fd, err, strlen(err));
+         return;
+      }
+
+      i--;
+   }
+
+   // In node we will have the node to delete
+   char *msg;
+
+   if (node->tag == TagNode)
+   {
+      // If Child
+      node->uplink->left = node->sibling;
+      node->sibling->tag = TagNode;
+      free_tree(node);
+
+      msg = "MSG: Child removed successfully.\n";
+      write(client->fd, msg, strlen(msg));
+      return;
+   }
+   else if (node->tag == TagSibling)
+   {
+      // If Sibling
+      node->uplink->sibling = node->sibling;
+      free_tree(node);
+
+      msg = "MSG: Sibling removed successfully.\n";
+      write(client->fd, msg, strlen(msg));
+      return;
+   }
+   else
+   {
+      msg = "An error occured.\n";
+      write(client->fd, msg, strlen(msg));
+      return;
+   }
 }

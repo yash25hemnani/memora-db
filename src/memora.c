@@ -29,32 +29,45 @@ int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
         write(client->fd, msg, strlen(msg));
         return CMD_ERR_ARGS;
     }
-    
+
     char *msg = "Printing Tree...\n";
     write(client->fd, msg, strlen(msg));
     print_tree(client, &root);
     return CMD_OK;
 }
 
-void search_node_handler(Client *client, int32 argc, int8 argv[][64]) {
+void search_node_handler(Client *client, int32 argc, int8 argv[][64])
+{
     int8 *path = argv[0];
 
     Node *node = find_node(client, &root.node, path);
 
-    if (node) {
+    if (node)
+    {
         char *msg = "Node found successfully!\n";
         write(client->fd, msg, strlen(msg));
-    } else {
+    }
+    else
+    {
         char *msg = "No such node found!\n";
         write(client->fd, msg, strlen(msg));
     }
 }
 
-void create_node_handler(Client *client, int32 argc, int8 argv[][64]) {
+void create_node_handler(Client *client, int32 argc, int8 argv[][64])
+{
     // Accepets two args - path and folder
     int8 *path = argv[0];
 
     add_node(client, path);
+}
+
+void remove_node_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    // Accepets two args - path and folder
+    int8 *path = argv[0];
+
+    remove_node(client, path);
 }
 
 CmdHandler handlers[] = {
@@ -62,6 +75,7 @@ CmdHandler handlers[] = {
     {(int8 *)"tree", 0, 0, tree_handler},
     {(int8 *)"search-node", 1, 1, search_node_handler},
     {(int8 *)"create-node", 1, 1, create_node_handler},
+    {(int8 *)"remove-node", 1, 1, remove_node_handler},
 };
 
 // Get pointer to that function
@@ -141,7 +155,6 @@ void child_loop(Client *client)
     zero(cmd, 16);
     strncpy((char *)cmd, (char *)tokens[0], 15);
 
-    // Use the get handler to decide what data it needs
     CmdHandler *handler = get_handler(cmd);
 
     if (handler == NULL)
@@ -162,9 +175,9 @@ void child_loop(Client *client)
     for (int8 i = 0; i < argc; i++)
     {
         zero(args[i], 64);
-        strncpy((char *)args[i], (char *)tokens[i+1], 63);
+        strncpy((char *)args[i], (char *)tokens[i + 1], 63);
     }
-    
+
     handler->handler(client, argc, args);
 
     return;
