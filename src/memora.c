@@ -36,23 +36,32 @@ int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
     return CMD_OK;
 }
 
-void create_node_handler(Client *client, int32 argc, int8 argv[][64]) {
-    // Accepets two args - path and folder
-    int8 *parent_path = argv[0];
-    int8 *path = argv[1];
+void search_node_handler(Client *client, int32 argc, int8 argv[][64]) {
+    int8 *path = argv[0];
 
-    Node *node = find_node(parent_path);
+    Node *node = find_node(client, &root.node, path);
 
     if (node) {
-        char *msg = "New node created successfully!\n";
+        char *msg = "Node found successfully!\n";
+        write(client->fd, msg, strlen(msg));
+    } else {
+        char *msg = "No such node found!\n";
         write(client->fd, msg, strlen(msg));
     }
+}
+
+void create_node_handler(Client *client, int32 argc, int8 argv[][64]) {
+    // Accepets two args - path and folder
+    int8 *path = argv[0];
+
+    add_node(client, path);
 }
 
 CmdHandler handlers[] = {
     {(int8 *)"ping", 0, 0, ping_handler},
     {(int8 *)"tree", 0, 0, tree_handler},
-    {(int8 *)"create-node", 2, 2, create_node_handler},
+    {(int8 *)"search-node", 1, 1, search_node_handler},
+    {(int8 *)"create-node", 1, 1, create_node_handler},
 };
 
 // Get pointer to that function

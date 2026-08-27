@@ -1,3 +1,6 @@
 STUDY.md
 Makefile
 *.exe
+build/
+.claude
+.vscode

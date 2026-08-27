@@ -19,7 +19,8 @@
 // Tag bits identify which member of the `Tree` union a block of memory holds; each occupies its own bit so tags can be OR'd and tested with AND.
 #define TagRoot     1 // 00 01
 #define TagNode     2 // 00 10
-#define TagLeaf     4 // 01 00
+#define TagSibling  4 // 01 00
+#define TagLeaf     5 // 01 00
 
 // Sentinel written to errno before an operation, so callers can tell
 // "nothing went wrong, there's just nothing here" apart from a real error.
@@ -59,7 +60,8 @@ struct s_node
     Tag tag;                    // TagNode, or (TagRoot | TagNode) for the single root node
     struct s_node *uplink; // Points to the node layer above (parent); root points to itself
     struct s_node *left;         // This node's child node, one level deeper in the path
-    struct s_leaf *right;        // Head of this node's Leaf list (NULL if it has none yet)
+    struct s_node *sibling;      // Next sibling node at the same level (LCRS "right")
+    struct s_leaf *leaves;       // Head of this node's Leaf list (NULL if it has none yet)   
     int8 path[256];              // Human-readable path segment stored at this node
 };
 
@@ -89,10 +91,9 @@ typedef union u_tree Tree;
 extern Tree root;
 
 void print_tree(Client *client, Tree *_root);
+Node* find_node(Client *client, Node* node, int8 *path);
+void add_node(Client *client, int8 *path);
+
 int8 *indent(int16 n);
-Node *create_node(Node *parent, int8 *path);
-Node *find_node(int8 *path);
-Leaf *find_last_linear(Node *parent);
-Leaf *create_leaf(Node *parent, int8 *key, int8 *value, int16 count);
 
 #endif

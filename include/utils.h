@@ -11,4 +11,6 @@ void zero(int8 *buffer, int16 size);
 // pointers into `tokens`. Returns the number of tokens found.
 int split(int8 sep, int8 *buffer, int8 *tokens[], int16 max_tokens);
 
+void prepend(int8 ch, int8 *buffer, int8 *path);
+
 #endif

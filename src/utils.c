@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <string.h>
 
 void zero(int8 *buffer, int16 size)
 {
@@ -48,4 +49,18 @@ int split(int8 sep, int8 *buffer, int8 *tokens[], int16 max_tokens)
    }
 
    return token_count;
+}
+
+void prepend(int8 ch, int8 *buffer, int8 *path)
+{
+   int len = strlen((char *)path);
+   
+   buffer[0] = ch;
+
+   for (int i = 0; i < len; i++)
+   {
+      buffer[i + 1] = path[i];
+   }
+
+   buffer[len + 1] = '\0';
 }
