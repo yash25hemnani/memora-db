@@ -1,4 +1,6 @@
 *.exe
 build/
+src/hash_table
+TODO
 .claude
 .vscode
