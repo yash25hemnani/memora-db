@@ -18,11 +18,13 @@ int32 hash(int8 *key, int32 capacity)
     return sum % capacity;
 }
 
-HashTable *create_table(int32 capacity) {
+HashTable *create_table(int32 capacity)
+{
     // Dynamically allocate memory and return a pointer to the table
     HashTable *hash_table = malloc(sizeof(HashTable));
 
-    if (hash_table == NULL) return NULL;
+    if (hash_table == NULL)
+        return NULL;
 
     hash_table->buckets = malloc(sizeof(Entry *) * capacity);
 
@@ -32,46 +34,54 @@ HashTable *create_table(int32 capacity) {
     return hash_table;
 }
 
-int8 *get_value(HashTable *hash_table, int8 *key) {
-    // Gets you the index in the bucket 
+int8 *get_value(HashTable *hash_table, int8 *key)
+{
+    // Gets you the index in the bucket
     int32 index = hash(key, hash_table->capacity);
 
     Entry *entry = hash_table->buckets[index];
 
-    while(entry) {
-        if (strcmp((char *)entry->key, (char *)key) == 0) {
+    while (entry)
+    {
+        if (strcmp((char *)entry->key, (char *)key) == 0)
+        {
             return entry->value;
         }
-    }    
+    }
 
     return NULL;
 }
 
-Entry *get_entry(HashTable *hash_table, int8 *key) {
-    // Gets you the index in the bucket 
+Entry *get_entry(HashTable *hash_table, int8 *key)
+{
+    // Gets you the index in the bucket
     int32 index = hash(key, hash_table->capacity);
 
     Entry *entry = hash_table->buckets[index];
 
-    while(entry) {
-        if (strcmp((char *)entry->key, (char *)key) == 0) {
+    while (entry)
+    {
+        if (strcmp((char *)entry->key, (char *)key) == 0)
+        {
             return entry;
         }
-    }    
- 
+    }
+
     return NULL;
 }
 
-int16 exists(HashTable *hash_table, int8 *key) {
-    int8 *value = get(hash_table, key);
+int16 exists(HashTable *hash_table, int8 *key)
+{
+    Entry *entry = get_entry(hash_table, key);
 
-    return value ? 1 : 0;
+    return entry ? 1 : 0;
 }
 
 int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 {
-    if (exists(hash_table, key)) {
-        return -1;  // Already exists
+    if (exists(hash_table, key))
+    {
+        return -1; // Already exists
     }
 
     int32 index = hash(key, hash_table->capacity);
@@ -79,11 +89,13 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
     Entry *entry = hash_table->buckets[index];
 
     // Bucket is empty
-    if (entry == NULL) {
+    if (entry == NULL)
+    {
         Entry *new_entry = malloc(sizeof(Entry));
 
-        if (new_entry == NULL) {
-            return -2;  // Allocation failed
+        if (new_entry == NULL)
+        {
+            return -2; // Allocation failed
         }
 
         new_entry->key = key;
@@ -97,13 +109,15 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
     }
 
     // Bucket already contains entries
-    while (entry->next != NULL) {
+    while (entry->next != NULL)
+    {
         entry = entry->next;
     }
 
     Entry *new_entry = malloc(sizeof(Entry));
 
-    if (new_entry == NULL) {
+    if (new_entry == NULL)
+    {
         return -2;
     }
 
@@ -117,27 +131,34 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
     return 0;
 }
 
-int16 delete(HashTable *hash_table, int8 *key){
+int16 delete(HashTable *hash_table, int8 *key)
+{
     Entry *entry = get_entry(hash_table, key);
 
-    if (!entry) {
+    if (!entry)
+    {
         return -1;
     }
-    
+
     // If first entry
-    if (entry->prev == NULL){
+    if (entry->prev == NULL)
+    {
         int32 index = hash(key, hash_table->capacity);
 
         hash_table->buckets[index] = entry->next;
 
-        if (entry->next != NULL) {
+        if (entry->next != NULL)
+        {
             entry->next->prev = NULL;
         }
-
-    } else if (entry->next == NULL) {
+    }
+    else if (entry->next == NULL)
+    {
         // If last entry
         entry->prev->next = NULL;
-    } else {
+    }
+    else
+    {
         // If in middle
         entry->prev->next = entry->next;
         entry->next->prev = entry->prev;

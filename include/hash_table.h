@@ -24,7 +24,7 @@ struct s_entry {
     
 typedef struct s_entry Entry;
 
-typedef struct s_hash_table {
+struct s_hash_table {
     Entry **buckets; // Now a dynamic array
     int32 capacity; // Number of buckets
     int32 count; // Number of entries

@@ -115,8 +115,10 @@ Node *find_node(Client *client, Node *node, int8 *path)
    return NULL;
 }
 
-void free_tree(Node *node){
-   if (node == NULL) return;
+void free_tree(Node *node)
+{
+   if (node == NULL)
+      return;
 
    free_tree(node->left);
    free_tree(node->sibling);
@@ -163,7 +165,7 @@ void add_node(Client *client, int8 *path)
       int8 path_buffer[256];
       prepend('/', path_buffer, tokens[token_count - i]);
 
-      node = find_node(client, &root.node, path_buffer);
+      node = find_node(client, node, path_buffer);
 
       if (!node)
       {
@@ -201,6 +203,8 @@ void add_node(Client *client, int8 *path)
       char *msg = "SUCCESS: Added a child to the node\n";
       write(client->fd, msg, strlen(msg));
 
+      save_node_to_file(client, path);
+
       return;
    }
 
@@ -230,6 +234,8 @@ void add_node(Client *client, int8 *path)
 
       char *msg = "SUCCESS: Added a sibling to the node\n";
       write(client->fd, msg, strlen(msg));
+
+      save_node_to_file(client, path);
 
       return;
    }
@@ -304,7 +310,7 @@ void remove_node(Client *client, int8 *path)
       int8 path_buffer[256];
       prepend('/', path_buffer, tokens[token_count - i]);
 
-      node = find_node(client, &root.node, path_buffer);
+      node = find_node(client, node, path_buffer);
 
       if (!node)
       {
@@ -346,4 +352,28 @@ void remove_node(Client *client, int8 *path)
       write(client->fd, msg, strlen(msg));
       return;
    }
+}
+
+void save_node_to_file(Client *client, int8 *path)
+{
+   // Creates a file if doesn't exist
+   FILE *file = fopen("data.db", "a");
+
+   if (file == NULL)
+   {
+      perror("fopen");
+      return 1;
+   }
+
+   fprintf(file, (char *)path);
+   fprintf(file, "\n");
+
+   char *msg = "Node saved to file.\n";
+   write_to_client(client, msg);
+   
+   fclose(file);
+}
+
+void remove_node_from_file(Client *client, int8 *path){
+
 }
