@@ -75,7 +75,7 @@ union u_tree {
 typedef union u_tree Tree;
 
 // The single global root of the tree (defined in tree.c).
-extern Tree root;
+extern Tree *root;
 
 void print_tree(Client *client, Tree *_root);
 Node* find_node(Client *client, Node* node, int8 *path);

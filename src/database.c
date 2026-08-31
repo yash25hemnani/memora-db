@@ -2,6 +2,7 @@
 #include "memora.h"
 #include "utils.h"
 #include "users.h"
+#include "tree.h"
 #include <sys/stat.h>
 
 int16 add_ownership(Client *client, int8 *db_name)
@@ -38,7 +39,6 @@ int16 check_ownership(Client *client, int8 *db_name)
 
     if (!file)
     {
-        write_to_client(client, "No such DB exists.\n");
         return STATUS_ERROR;
     }
 
@@ -49,7 +49,7 @@ int16 check_ownership(Client *client, int8 *db_name)
     {
         Ownership ownership;
 
-        sscanf(line, "%63[^|]|%127[^|]", ownership.username, ownership.db_name);
+        sscanf(line, "%63[^|]|%127[^\n]", ownership.username, ownership.db_name);
 
         if (strcmp(ownership.db_name, db_name) == 0 && strcmp(ownership.username, client->username) == 0)
         {
@@ -184,11 +184,12 @@ void use_database(Client *client, int8 *db_name)
     if (ownership != STATUS_OK)
     {
         write_to_client(client, "No such database exist.\n");
-        return STATUS_ERROR;
+        return;
     }
     
     int8 db_path[256];
     snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
+    write_to_client(client, (char *)db_path);
 
     FILE *file = fopen((char *)db_path, "r");
 
@@ -200,6 +201,9 @@ void use_database(Client *client, int8 *db_name)
 
     strncpy(client->active_db, (char *)db_name, sizeof(client->active_db) - 1);
     client->active_db[sizeof(client->active_db) - 1] = '\0';
+
+    reset_tree();
+    load_tree(client);
 
     int8 msg[256];
     snprintf((char *)msg, sizeof(msg), "Using Database - %s\n", db_name);
@@ -243,5 +247,33 @@ void list_databases(Client *client)
         }
     }
 
+    fclose(file);
+}
+
+void load_tree(Client *client){
+    if (strlen(client->active_db) == 0) {
+        write_to_client(client, "No active db.\n");
+        return;
+    }
+
+    // If there is an active db, we will load the tree
+    init_tree();
+
+    int8 db_path[256];
+    snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, client->active_db);
+
+    FILE *file = fopen(db_path, "r");
+
+    if (file == NULL){
+        // Handled in use-database
+        return;
+    }
+    int8 line[256];
+
+    while(fgets((char *)line, sizeof(line), file)) {
+        add_node(client, line);
+    }
+
+    write_to_client(client, "Database loaded successfully!\n");
     fclose(file);
 }

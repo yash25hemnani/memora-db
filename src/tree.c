@@ -5,14 +5,39 @@
 // The single global root of the tree, tagged as both Root and Node; `uplink` points back to itself since it has no parent.
 Nullptr null_ptr = 0;
 
-Tree root = {
-    .node = {
-        .tag = (TagRoot | TagNode),
-        .uplink = (Node *)&root,
-        .left = 0,
-        .sibling = 0,
-        .leaves = 0,
-        .path = "/"}};
+Tree *root = NULL;
+
+void init_tree(void)
+{
+    root = malloc(sizeof(Tree));
+
+    if (root == NULL)
+    {
+        perror("malloc");
+        return;
+    }
+
+    root->node.tag = TagRoot | TagNode;
+    root->node.uplink = (Node *)root;
+    root->node.left = NULL;
+    root->node.sibling = NULL;
+    root->node.leaves = NULL;
+
+    strncpy((char *)root->node.path, "/", sizeof(root->node.path) - 1);
+    root->node.path[sizeof(root->node.path) - 1] = '\0';
+
+    return &root;
+}
+
+void reset_tree(void)
+{
+    if (root != NULL)
+    {
+        free_tree(&root->node);
+        free(root);
+        root = NULL;
+    }
+}
 
 int8 *indent(int16 n)
 {
@@ -144,7 +169,7 @@ void add_node(Client *client, int8 *path)
       return;
    }
 
-   Node *node = &root.node;
+   Node *node = &root->node;
    int i = token_count;
 
    while (i > 1)
@@ -286,7 +311,7 @@ void remove_node(Client *client, int8 *path)
       return;
    }
 
-   Node *node = &root.node;
+   Node *node = &root->node;
    int i = token_count;
 
    while (i > 0)
@@ -337,4 +362,3 @@ void remove_node(Client *client, int8 *path)
       return;
    }
 }
-

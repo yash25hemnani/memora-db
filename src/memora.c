@@ -54,7 +54,7 @@ void search_node_handler(Client *client, int32 argc, int8 argv[][64])
 {
     int8 *path = argv[0];
 
-    Node *node = find_node(client, &root.node, path);
+    Node *node = find_node(client, &root->node, path);
 
     if (node)
     {
@@ -123,7 +123,7 @@ CmdHandler handlers[] = {
     {(int8 *)"ping", 0, 0, ping_handler, false},
     {(int8 *)"tree", 0, 0, tree_handler, true},
     {(int8 *)"login", 2, 2, login_handler},
-    {(int8 *)"logout", 0, 0, logout_handler},
+    {(int8 *)"logout", 0, 0, logout_handler, true},
     {(int8 *)"search-node", 1, 1, search_node_handler, true},
     {(int8 *)"create-node", 1, 1, create_node_handler, true},
     {(int8 *)"remove-node", 1, 1, remove_node_handler, true},
