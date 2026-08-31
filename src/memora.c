@@ -1,9 +1,23 @@
 #include "memora.h"
 #include "tree.h"
+#include "users.h"
+#include "database.h"
 
 // Set to false to stop the accept loop in initserver()
 bool s_continuation;
 bool c_continuation;
+
+// Writes a NUL-terminated string to the client socket; no-op on an empty string.
+void write_to_client(Client *client, char *str)
+{
+    int16 size;
+
+    size = (int16)strlen(str);
+    if (size)
+    {
+        write(client->fd, str, size);
+    }
+}
 
 int32 ping_handler(Client *client, int32 argc, int8 argv[][64])
 {
@@ -11,12 +25,12 @@ int32 ping_handler(Client *client, int32 argc, int8 argv[][64])
     if (argc != 0)
     {
         char *msg = "ERR: Too many arguments\n";
-        write(client->fd, msg, strlen(msg));
+        write_to_client(client, msg);
         return CMD_OK;
     }
 
     char *msg = "pong\n";
-    write(client->fd, msg, strlen(msg));
+    write_to_client(client, msg);
     return CMD_ERR_ARGS;
 }
 
@@ -26,12 +40,12 @@ int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
     if (argc != 0)
     {
         char *msg = "ERR: Too many arguments\n";
-        write(client->fd, msg, strlen(msg));
+        write_to_client(client, msg);
         return CMD_ERR_ARGS;
     }
 
     char *msg = "Printing Tree...\n";
-    write(client->fd, msg, strlen(msg));
+    write_to_client(client, msg);
     print_tree(client, &root);
     return CMD_OK;
 }
@@ -45,12 +59,12 @@ void search_node_handler(Client *client, int32 argc, int8 argv[][64])
     if (node)
     {
         char *msg = "Node found successfully!\n";
-        write(client->fd, msg, strlen(msg));
+        write_to_client(client, msg);
     }
     else
     {
         char *msg = "No such node found!\n";
-        write(client->fd, msg, strlen(msg));
+        write_to_client(client, msg);
     }
 }
 
@@ -70,12 +84,52 @@ void remove_node_handler(Client *client, int32 argc, int8 argv[][64])
     remove_node(client, path);
 }
 
+void login_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    // Accepets two args - path and folder
+    int8 *username = argv[0];
+    int8 *password = argv[1];
+
+    login(client, username, password);
+}
+
+void logout_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    logout(client);
+}
+
+void create_database_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *db_name = argv[0];
+
+    create_database(client, db_name);
+}
+
+void use_database_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *db_name = argv[0];
+
+    use_database(client, db_name);
+}
+
+void list_database_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *db_name = argv[0];
+
+    list_databases(client);
+}
+
 CmdHandler handlers[] = {
-    {(int8 *)"ping", 0, 0, ping_handler},
-    {(int8 *)"tree", 0, 0, tree_handler},
-    {(int8 *)"search-node", 1, 1, search_node_handler},
-    {(int8 *)"create-node", 1, 1, create_node_handler},
-    {(int8 *)"remove-node", 1, 1, remove_node_handler},
+    {(int8 *)"ping", 0, 0, ping_handler, false},
+    {(int8 *)"tree", 0, 0, tree_handler, true},
+    {(int8 *)"login", 2, 2, login_handler},
+    {(int8 *)"logout", 0, 0, logout_handler},
+    {(int8 *)"search-node", 1, 1, search_node_handler, true},
+    {(int8 *)"create-node", 1, 1, create_node_handler, true},
+    {(int8 *)"remove-node", 1, 1, remove_node_handler, true},
+    {(int8 *)"create-database", 1, 1, create_database_handler, true},
+    {(int8 *)"use-database", 1, 1, use_database_handler, true},
+    {(int8 *)"list-databases", 0, 0, list_database_handler, true},
 };
 
 // Get pointer to that function
@@ -99,18 +153,18 @@ int8 verify_arg_counts(Client *client, int8 token_count, int8 max_args, int8 min
     if (token_count > max_args)
     {
         char *err_msg = "Too many arguments\n";
-        write(client->fd, err_msg, strlen(err_msg));
-        return 0;
+        write_to_client(client, err_msg);
+        return STATUS_FALSE;
     }
 
     if (token_count < min_args)
     {
         char *err_msg = "Too less arguments\n";
-        write(client->fd, err_msg, strlen(err_msg));
-        return 0;
+        write_to_client(client, err_msg);
+        return STATUS_FALSE;
     }
 
-    return 1;
+    return STATUS_OK;
 }
 
 #define MAX_TOKENS 10
@@ -147,7 +201,7 @@ void child_loop(Client *client)
     if (token_count < 1)
     {
         char *err = "ERR\n";
-        write(client->fd, err, strlen(err));
+        write_to_client(client, err);
         return;
     }
 
@@ -160,7 +214,13 @@ void child_loop(Client *client)
     if (handler == NULL)
     {
         char *err = "ERR: Unknown command\n";
-        write(client->fd, err, strlen(err));
+        write_to_client(client, err);
+        return;
+    }
+
+    if (handler->requires_login && !client->logged_in)
+    {
+        write_to_client(client, "ERR: Login required.\n");
         return;
     }
 
@@ -231,20 +291,17 @@ void mainloop(int server_fd)
         // Child Process - Handle that particular client
         c_continuation = true;
         char *status = "Status:100 - Connected to Memora\n";
-        write(client->fd, status, strlen(status));
+        write_to_client(client, status);
 
         while (c_continuation)
         {
             child_loop(client);
         }
 
+        close(client_fd);
         free(client);
-        close(server_fd);
-        return;
+        exit(0);
     }
-
-    close(client_fd);
-    free(client);
 }
 
 // Creates a listening socket on the given port and serves connections
@@ -284,6 +341,7 @@ void initserver(int16 port)
 
     while (s_continuation)
     {
+        init();
         mainloop(server_fd);
     }
 }

@@ -21,14 +21,13 @@
 #define HOST    "127.0.0.1"
 #define PORT    "8008"
 
-typedef unsigned int int32;
-typedef unsigned short int int16;
-typedef unsigned char int8;
-
 struct s_client {
     int fd;
     char ip[16];
     int16 port;
+    char username[64];
+    int logged_in;
+    char active_db[64];
 };
 
 typedef struct s_client Client;
@@ -46,6 +45,7 @@ struct s_cmdhandler {
     int8 min_args;   // Excluding cmd
     int8 max_args;   // Excluding cmd
     Callback handler;
+    bool requires_login;
 };
 
 typedef struct s_cmdhandler CmdHandler;
@@ -60,6 +60,7 @@ int32 ping_handler(Client *client, int32 argc, int8 argv[][64]);
 int32 tree_handler(Client *client, int32 argc, int8 argv[][64]);
 CmdHandler *get_handler(int8 *command);
 int8 verify_arg_counts(Client *client, int8 token_count, int8 max_args, int8 min_args);
+void write_to_client(Client *client, char *str);
 void child_loop(Client *client);
 void mainloop(int server_fd);
 void initserver(int16 port);

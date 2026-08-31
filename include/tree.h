@@ -38,21 +38,8 @@ extern Nullptr null_ptr;
 #define reterr(x) \
     do { errno = (x); return null_ptr; } while (0)
 
-// unsigned int is an integer type that can only store non-negative values.
-/*
- * Explicit width aliases keep struct layouts (path/key buffers, sizes)
- * predictable across platforms, instead of relying on plain int/short/char
- * whose sizes aren't guaranteed by the standard.
- */
-typedef unsigned int int32;
-typedef unsigned short int int16;
-typedef unsigned char int8;
+// int8/int16/int32 come from utils.h; Tag is this file's own alias for a byte.
 typedef unsigned char Tag;   // One byte is enough to hold any combination of the Tag* bits above
-/*
-    int8 → 8 bits (1 byte)
-    int16 → 16 bits (2 bytes)
-    int32 → 32 bits (4 bytes)
-*/
 
 // Node = one level of a path hierarchy (a directory); it links via uplink/left and owns a Leaf list (right) like files in that directory.
 struct s_node

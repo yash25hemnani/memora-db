@@ -14,18 +14,6 @@ Tree root = {
         .leaves = 0,
         .path = "/"}};
 
-// Writes a NUL-terminated string to the client socket; no-op on an empty string.
-static void write_to_client(Client *client, char *str)
-{
-   int16 size;
-
-   size = (int16)strlen(str);
-   if (size)
-   {
-      write(client->fd, str, size);
-   }
-}
-
 int8 *indent(int16 n)
 {
    int16 i;
@@ -163,7 +151,7 @@ void add_node(Client *client, int8 *path)
    {
 
       int8 path_buffer[256];
-      prepend('/', path_buffer, tokens[token_count - i]);
+      prepend("/", path_buffer, tokens[token_count - i]);
 
       node = find_node(client, node, path_buffer);
 
@@ -183,7 +171,7 @@ void add_node(Client *client, int8 *path)
    // If node exists on siblings -> error otherwise add
    // Get the last token since that is the one to be added
    int8 node_path_buffer[256];
-   prepend('/', node_path_buffer, tokens[token_count - 1]);
+   prepend("/", node_path_buffer, tokens[token_count - 1]);
 
    // First we check child
    if (!node->left)
@@ -202,8 +190,6 @@ void add_node(Client *client, int8 *path)
 
       char *msg = "SUCCESS: Added a child to the node\n";
       write(client->fd, msg, strlen(msg));
-
-      save_node_to_file(client, path);
 
       return;
    }
@@ -234,8 +220,6 @@ void add_node(Client *client, int8 *path)
 
       char *msg = "SUCCESS: Added a sibling to the node\n";
       write(client->fd, msg, strlen(msg));
-
-      save_node_to_file(client, path);
 
       return;
    }
@@ -308,7 +292,7 @@ void remove_node(Client *client, int8 *path)
    while (i > 0)
    {
       int8 path_buffer[256];
-      prepend('/', path_buffer, tokens[token_count - i]);
+      prepend("/", path_buffer, tokens[token_count - i]);
 
       node = find_node(client, node, path_buffer);
 
@@ -354,26 +338,3 @@ void remove_node(Client *client, int8 *path)
    }
 }
 
-void save_node_to_file(Client *client, int8 *path)
-{
-   // Creates a file if doesn't exist
-   FILE *file = fopen("data.db", "a");
-
-   if (file == NULL)
-   {
-      perror("fopen");
-      return 1;
-   }
-
-   fprintf(file, (char *)path);
-   fprintf(file, "\n");
-
-   char *msg = "Node saved to file.\n";
-   write_to_client(client, msg);
-   
-   fclose(file);
-}
-
-void remove_node_from_file(Client *client, int8 *path){
-
-}

@@ -74,14 +74,14 @@ int16 exists(HashTable *hash_table, int8 *key)
 {
     Entry *entry = get_entry(hash_table, key);
 
-    return entry ? 1 : 0;
+    return entry ? STATUS_OK : STATUS_FALSE;
 }
 
 int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 {
     if (exists(hash_table, key))
     {
-        return -1; // Already exists
+        return STATUS_ERROR; // Already exists
     }
 
     int32 index = hash(key, hash_table->capacity);
@@ -95,7 +95,7 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 
         if (new_entry == NULL)
         {
-            return -2; // Allocation failed
+            return STATUS_ERROR; // Allocation failed
         }
 
         new_entry->key = key;
@@ -105,7 +105,7 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 
         hash_table->buckets[index] = new_entry;
 
-        return 0;
+        return STATUS_OK;
     }
 
     // Bucket already contains entries
@@ -118,7 +118,7 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 
     if (new_entry == NULL)
     {
-        return -2;
+        return STATUS_ERROR;
     }
 
     new_entry->key = key;
@@ -128,7 +128,7 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 
     entry->next = new_entry;
 
-    return 0;
+    return STATUS_OK;
 }
 
 int16 delete(HashTable *hash_table, int8 *key)
@@ -137,7 +137,7 @@ int16 delete(HashTable *hash_table, int8 *key)
 
     if (!entry)
     {
-        return -1;
+        return STATUS_ERROR;
     }
 
     // If first entry
@@ -166,5 +166,5 @@ int16 delete(HashTable *hash_table, int8 *key)
 
     free(entry);
 
-    return 0;
+    return STATUS_OK;
 }

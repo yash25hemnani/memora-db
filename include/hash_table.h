@@ -9,9 +9,7 @@
 #include <error.h>
 #include <stdbool.h>
 
-typedef unsigned int int32;
-typedef unsigned short int int16;
-typedef unsigned char int8;
+#include "utils.h"
 
 #define LOAD_FACTOR_THRESHOLD 0.7
 
