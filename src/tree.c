@@ -2,6 +2,7 @@
 #include "tree.h"
 #include "memora.h"
 #include "utils.h"
+#include "hash_table.h"
 
 // The single global root of the tree, tagged as both Root and Node; `uplink` points back to itself since it has no parent.
 Nullptr null_ptr = 0;
@@ -37,6 +38,12 @@ void reset_tree(void)
       free_tree(&root->node);
       free(root);
       root = NULL;
+   }
+
+   if (hash_table != NULL)
+   {
+      free_table(hash_table);
+      hash_table = NULL;
    }
 }
 
@@ -159,14 +166,61 @@ void add_node(Client *client, int8 *path, bool persist)
    if (strcmp((char *)path, (char *)"/") == 0)
    {
       char *err = "ERR: Can't re-create root.\n";
-      write(client->fd, err, strlen(err));
+      write_to_client(client, err);
       return;
    }
 
-   // We will get input like /users/name
-   // We can seperate it and get users & name
-   // First we have to search for users, if found, we search for name
-   // If name not found, we add it
+   /*
+      // We will get input like /users/name
+      // We can seperate it and get users & name
+      // First we have to search for users, if found, we search for name
+      // If name not found, we add it
+      int8 buffer[256];
+      int8 *tokens[32];
+
+      // You need to copy the path to buffer so it can be passed to split
+      zero(buffer, 256);
+      strcpy((char *)buffer, (char *)path);
+
+      int token_count = split('/', buffer, tokens, 16);
+
+      if (token_count == 0)
+      {
+         char *err = "ERR: Invalid Path.\n";
+         write_to_client(client, err);
+         return;
+      }
+
+      Node *node = &root->node;
+      int i = token_count;
+
+      while (i > 1)
+      {
+
+         int8 path_buffer[256];
+         prepend("/", path_buffer, tokens[token_count - i]);
+
+         node = find_node(client, node, path_buffer);
+
+         if (!node)
+         {
+            // If node not found, return
+            return;
+         }
+
+         // If node found, re-run the loop
+         i--;
+      }
+
+      // When the loop does't run, it means we are at root while adding or
+      // When the loop ends, we will be at the node before the one that needs to be added
+      // At that point, we will need to check siblings
+      // If node exists on siblings -> error otherwise add
+      // Get the last token since that is the one to be added
+      int8 node_path_buffer[256];
+      prepend("/", node_path_buffer, tokens[token_count - 1]);
+   */
+
    int8 buffer[256];
    int8 *tokens[32];
 
@@ -179,38 +233,36 @@ void add_node(Client *client, int8 *path, bool persist)
    if (token_count == 0)
    {
       char *err = "ERR: Invalid Path.\n";
-      write(client->fd, err, strlen(err));
+      write_to_client(client, err);
       return;
    }
 
-   Node *node = &root->node;
-   int i = token_count;
+   // Create parent path by splitting, then joining uptil the second last element
+   int8 parent_path_buffer[256];
+   parent_path_buffer[0] = '\0';
 
+   int i = token_count;
    while (i > 1)
    {
-
-      int8 path_buffer[256];
-      prepend("/", path_buffer, tokens[token_count - i]);
-
-      node = find_node(client, node, path_buffer);
-
-      if (!node)
-      {
-         // If node not found, return
-         return;
-      }
-
-      // If node found, re-run the loop
+      strcat((char *)parent_path_buffer, "/");
+      strcat((char *)parent_path_buffer, (char *)tokens[token_count - i]);
       i--;
    }
 
-   // When the loop does't run, it means we are at root while adding or
-   // When the loop ends, we will be at the node before the one that needs to be added
-   // At that point, we will need to check siblings
-   // If node exists on siblings -> error otherwise add
-   // Get the last token since that is the one to be added
+   Node *node = (parent_path_buffer[0] == '\0')
+                    ? &root->node
+                    : (Node *)get_value(hash_table, parent_path_buffer);
+
+   if (!node)
+   {
+      char *err = "ERR: Parent path not found.\n";
+      write_to_client(client, err);
+      return;
+   }
+
+   // The new node's own path is just its last segment, e.g. "/c" for input "/a/b/c"
    int8 node_path_buffer[256];
-   prepend("/", node_path_buffer, tokens[token_count - 1]);
+   prepend((int8 *)"/", node_path_buffer, tokens[token_count - 1]);
 
    // First we check child
    if (!node->left)
@@ -228,10 +280,14 @@ void add_node(Client *client, int8 *path, bool persist)
       strcpy((char *)node->left->path, (char *)node_path_buffer);
 
       char *msg = "SUCCESS: Added a child to the node\n";
-      write(client->fd, msg, strlen(msg));
+      write_to_client(client, msg);
+
+      insert(hash_table, path, (int8 *)node->left);
 
       if (persist)
+      {
          add_to_file((int8 *)client->active_db, path);
+      }
 
       return;
    }
@@ -240,7 +296,7 @@ void add_node(Client *client, int8 *path, bool persist)
    if (strcmp((char *)node_path_buffer, (char *)node->left->path) == 0)
    {
       char *err = "ERR: Already exists.\n";
-      write(client->fd, err, strlen(err));
+      write_to_client(client, err);
       return;
    }
 
@@ -261,7 +317,14 @@ void add_node(Client *client, int8 *path, bool persist)
       strcpy((char *)node->left->sibling->path, (char *)node_path_buffer);
 
       char *msg = "SUCCESS: Added a sibling to the node\n";
-      write(client->fd, msg, strlen(msg));
+      write_to_client(client, msg);
+
+      insert(hash_table, path, (int8 *)node->left->sibling);
+
+      if (persist)
+      {
+         add_to_file((int8 *)client->active_db, path);
+      }
 
       return;
    }
@@ -274,7 +337,7 @@ void add_node(Client *client, int8 *path, bool persist)
       if (strcmp((char *)node_path_buffer, (char *)sibling->path) == 0)
       {
          char *err = "ERR: Already exists.\n";
-         write(client->fd, err, strlen(err));
+         write_to_client(client, err);
          return;
       }
 
@@ -298,10 +361,13 @@ void add_node(Client *client, int8 *path, bool persist)
    strcpy((char *)sibling->sibling->path, (char *)node_path_buffer);
 
    char *msg = "SUCCESS: Added a sibling to the node\n";
-   write(client->fd, msg, strlen(msg));
+   write_to_client(client, msg);
 
    if (persist)
+   {
       add_to_file((int8 *)client->active_db, path);
+      insert(hash_table, path, sibling->sibling);
+   }
 }
 
 void remove_node(Client *client, int8 *path)
@@ -320,42 +386,46 @@ void remove_node(Client *client, int8 *path)
       return;
    }
 
-   // We will split the path
-   int8 buffer[256];
-   int8 *tokens[32];
+   /*
+      // We will split the path
+      int8 buffer[256];
+      int8 *tokens[32];
 
-   zero(buffer, 256);
-   strcpy((char *)buffer, (char *)path);
+      zero(buffer, 256);
+      strcpy((char *)buffer, (char *)path);
 
-   int token_count = split('/', buffer, tokens, 32);
+      int token_count = split('/', buffer, tokens, 32);
 
-   // No path specified
-   if (token_count == 0)
-   {
-      char *err = "ERR: Invalid Path.\n";
-      write(client->fd, err, strlen(err));
-      return;
-   }
-
-   Node *node = &root->node;
-   int i = token_count;
-
-   while (i > 0)
-   {
-      int8 path_buffer[256];
-      prepend("/", path_buffer, tokens[token_count - i]);
-
-      node = find_node(client, node, path_buffer);
-
-      if (!node)
+      // No path specified
+      if (token_count == 0)
       {
-         char *err = "ERR: Node not found.\n";
-         write(client->fd, err, strlen(err));
+         char *err = "ERR: Invalid Path.\n";
+         write_to_client(client, err);
          return;
       }
 
-      i--;
-   }
+      Node *node = &root->node;
+      int i = token_count;
+
+      while (i > 0)
+      {
+         int8 path_buffer[256];
+         prepend("/", path_buffer, tokens[token_count - i]);
+
+         node = find_node(client, node, path_buffer);
+
+         if (!node)
+         {
+            char *err = "ERR: Node not found.\n";
+            write_to_client(client, err);
+            return;
+         }
+
+         i--;
+      }
+   */
+
+   Node *node = (Node *)get_entry(hash_table, path);
 
    // In node we will have the node to delete
    char *msg;
@@ -368,7 +438,7 @@ void remove_node(Client *client, int8 *path)
       free_tree(node);
 
       msg = "MSG: Child removed successfully.\n";
-      write(client->fd, msg, strlen(msg));
+      write_to_client(client, msg);
       remove_from_file((int8 *)client->active_db, path);
       return;
    }
@@ -379,14 +449,15 @@ void remove_node(Client *client, int8 *path)
       free_tree(node);
 
       msg = "MSG: Sibling removed successfully.\n";
-      write(client->fd, msg, strlen(msg));
+      write_to_client(client, msg);
       remove_from_file((int8 *)client->active_db, path);
       return;
    }
    else
    {
       msg = "An error occured.\n";
-      write(client->fd, msg, strlen(msg));
+      write_to_client(client, msg);
       return;
    }
 }
+

@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "users.h"
 #include "tree.h"
+#include "hash_table.h"
 #include <sys/stat.h>
 
 int16 add_ownership(Client *client, int8 *db_name)
@@ -186,7 +187,7 @@ void use_database(Client *client, int8 *db_name)
         write_to_client(client, "No such database exist.\n");
         return;
     }
-    
+
     int8 db_path[256];
     snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
 
@@ -202,6 +203,7 @@ void use_database(Client *client, int8 *db_name)
     client->active_db[sizeof(client->active_db) - 1] = '\0';
 
     reset_tree();
+    hash_table = create_table(100);
     load_tree(client);
 
     int8 msg[256];
@@ -249,8 +251,10 @@ void list_databases(Client *client)
     fclose(file);
 }
 
-void load_tree(Client *client){
-    if (strlen(client->active_db) == 0) {
+void load_tree(Client *client)
+{
+    if (strlen(client->active_db) == 0)
+    {
         write_to_client(client, "No active db.\n");
         return;
     }
@@ -263,13 +267,15 @@ void load_tree(Client *client){
 
     FILE *file = fopen(db_path, "r");
 
-    if (file == NULL){
+    if (file == NULL)
+    {
         // Handled in use-database
         return;
     }
     int8 line[256];
 
-    while(fgets((char *)line, sizeof(line), file)) {
+    while (fgets((char *)line, sizeof(line), file))
+    {
         line[strcspn((char *)line, "\n")] = '\0';
 
         // Root already exists from init_tree(); the file's "/" line is just a marker.

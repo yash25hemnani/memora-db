@@ -2,6 +2,7 @@
 #include "tree.h"
 #include "users.h"
 #include "database.h"
+#include "hash_table.h"
 
 // Set to false to stop the accept loop in initserver()
 bool s_continuation;
@@ -116,6 +117,12 @@ void list_database_handler(Client *client, int32 argc, int8 argv[][64])
 
     list_databases(client);
 }
+void print_hash_table_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *db_name = argv[0];
+
+    print_hash_table(client, hash_table);
+}
 
 CmdHandler handlers[] = {
     {(int8 *)"ping", 0, 0, ping_handler, false},
@@ -128,6 +135,7 @@ CmdHandler handlers[] = {
     {(int8 *)"create-database", 1, 1, create_database_handler, true},
     {(int8 *)"use-database", 1, 1, use_database_handler, true},
     {(int8 *)"list-databases", 0, 0, list_database_handler, true},
+    {(int8 *)"hash-table", 0, 0, print_hash_table_handler, true},
 };
 
 // Get pointer to that function
