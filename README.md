@@ -4,8 +4,7 @@
 ![build](https://img.shields.io/badge/build-make-brightgreen)
 ![status](https://img.shields.io/badge/status-work--in--progress-yellow)
 
-A small TCP database server written in C, from scratch — no external
-dependencies. Clients log in over a raw socket, create or select a
+A small TCP database server written in C. Clients log in over a raw socket, create or select a
 **database**, and shape a **path tree** (think directories) whose nodes can
 eventually hold key/value **leaves**.
 
