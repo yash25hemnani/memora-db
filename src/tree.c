@@ -75,11 +75,11 @@ void print_tree(Client *client, Tree *_root)
 {
    if (strlen(client->active_db) == 0)
    {
-      write_to_client(client, "No database selected.\n");
+      write_to_client(client, "ERR: No database selected.\n");
       return;
    }
 
-   write_to_client(client, "Printing Tree...\n");
+   write_to_client(client, "OK: Printing tree.\n");
    print_node(client, (Node *)_root, 0);
 }
 
@@ -158,7 +158,7 @@ void add_node(Client *client, int8 *path, bool persist)
 {
    if (strlen(client->active_db) == 0)
    {
-      write_to_client(client, "No database selected.\n");
+      write_to_client(client, "ERR: No database selected.\n");
       return;
    }
 
@@ -232,7 +232,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
    if (token_count == 0)
    {
-      char *err = "ERR: Invalid Path.\n";
+      char *err = "ERR: Invalid path.\n";
       write_to_client(client, err);
       return;
    }
@@ -279,7 +279,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
       strcpy((char *)node->left->path, (char *)node_path_buffer);
 
-      char *msg = "SUCCESS: Added a child to the node\n";
+      char *msg = "OK: Added child node.\n";
       write_to_client(client, msg);
 
       insert(hash_table, path, (int8 *)node->left);
@@ -316,7 +316,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
       strcpy((char *)node->left->sibling->path, (char *)node_path_buffer);
 
-      char *msg = "SUCCESS: Added a sibling to the node\n";
+      char *msg = "OK: Added sibling node.\n";
       write_to_client(client, msg);
 
       insert(hash_table, path, (int8 *)node->left->sibling);
@@ -360,13 +360,14 @@ void add_node(Client *client, int8 *path, bool persist)
 
    strcpy((char *)sibling->sibling->path, (char *)node_path_buffer);
 
-   char *msg = "SUCCESS: Added a sibling to the node\n";
+   char *msg = "OK: Added sibling node.\n";
    write_to_client(client, msg);
+
+   insert(hash_table, path, (int8 *)sibling->sibling);
 
    if (persist)
    {
       add_to_file((int8 *)client->active_db, path);
-      insert(hash_table, path, sibling->sibling);
    }
 }
 
@@ -374,14 +375,14 @@ void remove_node(Client *client, int8 *path)
 {
    if (strlen(client->active_db) == 0)
    {
-      write_to_client(client, "No database selected.\n");
+      write_to_client(client, "ERR: No database selected.\n");
       return;
    }
 
    // Removes all childs // Possibly store in a recycle bin
    if (strcmp((char *)path, (char *)"/") == 0)
    {
-      char *err = "ERR: Can't remove root node. \n";
+      char *err = "ERR: Can't remove root node.\n";
       write_to_client(client, err);
       return;
    }
@@ -425,37 +426,51 @@ void remove_node(Client *client, int8 *path)
       }
    */
 
-   Node *node = (Node *)get_entry(hash_table, path);
+   Node *node = (Node *)get_value(hash_table, path);
+
+   if (!node)
+   {
+      char *err = "ERR: Node not found.\n";
+      write_to_client(client, err);
+      return;
+   }
 
    // In node we will have the node to delete
    char *msg;
 
    if (node->tag == TagNode)
    {
-      // If Child
+      // If Child - promote the next sibling (if any) to take this node's place
       node->uplink->left = node->sibling;
-      node->sibling->tag = TagNode;
+      if (node->sibling)
+         node->sibling->tag = TagNode;
+
+      // Detach the promoted sibling before freeing, so free_tree only frees
+      // this node's own subtree instead of also freeing the reparented sibling.
+      node->sibling = NULL;
       free_tree(node);
 
-      msg = "MSG: Child removed successfully.\n";
+      msg = "OK: Child node removed successfully.\n";
       write_to_client(client, msg);
       remove_from_file((int8 *)client->active_db, path);
       return;
    }
    else if (node->tag == TagSibling)
    {
-      // If Sibling
+      // If Sibling - relink around this node, then detach before freeing so
+      // free_tree doesn't also free the next sibling that's now reparented.
       node->uplink->sibling = node->sibling;
+      node->sibling = NULL;
       free_tree(node);
 
-      msg = "MSG: Sibling removed successfully.\n";
+      msg = "OK: Sibling node removed successfully.\n";
       write_to_client(client, msg);
       remove_from_file((int8 *)client->active_db, path);
       return;
    }
    else
    {
-      msg = "An error occured.\n";
+      msg = "ERR: Internal error (unknown node tag).\n";
       write_to_client(client, msg);
       return;
    }

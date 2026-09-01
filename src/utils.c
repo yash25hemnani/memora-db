@@ -147,6 +147,8 @@ int16 remove_from_file(int8 *db_name, int8 *path)
    remove(db_path);
    // Rename temp to db_file name
    rename(temp_file_name, db_path);
+
+   return STATUS_OK;
 }
 
 int16 add_to_file(int8 *db_name, int8 *path)

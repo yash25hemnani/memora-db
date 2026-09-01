@@ -25,7 +25,7 @@ int32 ping_handler(Client *client, int32 argc, int8 argv[][64])
     // This command should not have any arguments
     if (argc != 0)
     {
-        char *msg = "ERR: Too many arguments\n";
+        char *msg = "ERR: Too many arguments.\n";
         write_to_client(client, msg);
         return CMD_OK;
     }
@@ -40,7 +40,7 @@ int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
     // This command should not have any arguments
     if (argc != 0)
     {
-        char *msg = "ERR: Too many arguments\n";
+        char *msg = "ERR: Too many arguments.\n";
         write_to_client(client, msg);
         return CMD_ERR_ARGS;
     }
@@ -57,12 +57,12 @@ void search_node_handler(Client *client, int32 argc, int8 argv[][64])
 
     if (node)
     {
-        char *msg = "Node found successfully!\n";
+        char *msg = "OK: Node found.\n";
         write_to_client(client, msg);
     }
     else
     {
-        char *msg = "No such node found!\n";
+        char *msg = "ERR: Node not found.\n";
         write_to_client(client, msg);
     }
 }
@@ -158,14 +158,14 @@ int8 verify_arg_counts(Client *client, int8 token_count, int8 max_args, int8 min
 {
     if (token_count > max_args)
     {
-        char *err_msg = "Too many arguments\n";
+        char *err_msg = "ERR: Too many arguments.\n";
         write_to_client(client, err_msg);
         return STATUS_FALSE;
     }
 
     if (token_count < min_args)
     {
-        char *err_msg = "Too less arguments\n";
+        char *err_msg = "ERR: Too few arguments.\n";
         write_to_client(client, err_msg);
         return STATUS_FALSE;
     }
@@ -206,7 +206,7 @@ void child_loop(Client *client)
     // Check if token count is zero
     if (token_count < 1)
     {
-        char *err = "ERR\n";
+        char *err = "ERR: Empty command.\n";
         write_to_client(client, err);
         return;
     }
@@ -219,7 +219,7 @@ void child_loop(Client *client)
 
     if (handler == NULL)
     {
-        char *err = "ERR: Unknown command\n";
+        char *err = "ERR: Unknown command.\n";
         write_to_client(client, err);
         return;
     }
@@ -296,7 +296,7 @@ void mainloop(int server_fd)
     {
         // Child Process - Handle that particular client
         c_continuation = true;
-        char *status = "Status:100 - Connected to Memora\n";
+        char *status = "OK: Connected to Memora.\n";
         write_to_client(client, status);
 
         while (c_continuation)

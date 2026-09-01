@@ -26,7 +26,7 @@ int16 add_ownership(Client *client, int8 *db_name)
     fprintf(file, "\n");
 
     fclose(file);
-    write_to_client(client, "Added ownership successfully!\n");
+    write_to_client(client, "OK: Ownership added successfully.\n");
 
     return STATUS_OK;
 }
@@ -85,7 +85,7 @@ int16 create_database(Client *client, int8 *db_name)
 
     if (file)
     {
-        char *msg = "Database already exists.\n";
+        char *msg = "ERR: Database already exists.\n";
         write_to_client(client, msg);
 
         fclose(file);
@@ -112,7 +112,7 @@ int16 create_database(Client *client, int8 *db_name)
         return STATUS_ERROR;
     }
 
-    char *msg = "Database created successfully.\n";
+    char *msg = "OK: Database created successfully.\n";
     write_to_client(client, msg);
 
     fclose(file);
@@ -126,7 +126,7 @@ int16 delete_database(Client *client, int8 *db_name)
 
     if (ownership != STATUS_OK)
     {
-        write_to_client(client, "No such database exist.\n");
+        write_to_client(client, "ERR: No such database exists.\n");
         return STATUS_ERROR;
     }
 
@@ -145,7 +145,7 @@ int16 delete_database(Client *client, int8 *db_name)
         return STATUS_ERROR;
     }
 
-    write_to_client(client, "Database deleted successfully.\n");
+    write_to_client(client, "OK: Database deleted successfully.\n");
 
     return STATUS_OK;
 }
@@ -157,7 +157,7 @@ int16 rename_database(Client *client, int8 *old_name, int8 *new_name)
 
     if (ownership != STATUS_OK)
     {
-        write_to_client(client, "No such database exist.\n");
+        write_to_client(client, "ERR: No such database exists.\n");
         return STATUS_ERROR;
     }
 
@@ -173,7 +173,7 @@ int16 rename_database(Client *client, int8 *old_name, int8 *new_name)
         return STATUS_ERROR;
     }
 
-    write_to_client(client, "Database renamed successfully.\n");
+    write_to_client(client, "OK: Database renamed successfully.\n");
 
     return STATUS_OK;
 }
@@ -184,7 +184,7 @@ void use_database(Client *client, int8 *db_name)
 
     if (ownership != STATUS_OK)
     {
-        write_to_client(client, "No such database exist.\n");
+        write_to_client(client, "ERR: No such database exists.\n");
         return;
     }
 
@@ -195,7 +195,7 @@ void use_database(Client *client, int8 *db_name)
 
     if (!file)
     {
-        write_to_client(client, "No such DB exists.\n");
+        write_to_client(client, "ERR: No such database exists.\n");
         return;
     }
 
@@ -207,7 +207,7 @@ void use_database(Client *client, int8 *db_name)
     load_tree(client);
 
     int8 msg[256];
-    snprintf((char *)msg, sizeof(msg), "Using Database - %s\n", db_name);
+    snprintf((char *)msg, sizeof(msg), "OK: Using database '%s'.\n", db_name);
     write_to_client(client, (char *)msg);
 
     return;
@@ -222,7 +222,7 @@ void list_databases(Client *client)
 
     if (!file)
     {
-        write_to_client(client, "No such DB exists.\n");
+        write_to_client(client, "ERR: No databases found.\n");
         return;
     }
 
@@ -255,7 +255,7 @@ void load_tree(Client *client)
 {
     if (strlen(client->active_db) == 0)
     {
-        write_to_client(client, "No active db.\n");
+        write_to_client(client, "ERR: No database selected.\n");
         return;
     }
 
@@ -285,6 +285,6 @@ void load_tree(Client *client)
         add_node(client, line, false);
     }
 
-    write_to_client(client, "Database loaded successfully!\n");
+    write_to_client(client, "OK: Database loaded successfully.\n");
     fclose(file);
 }

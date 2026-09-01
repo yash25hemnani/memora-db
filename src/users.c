@@ -72,7 +72,7 @@ void login(Client *client, int8 *username, int8 *password)
 {
     // Check if already logged in
     if (client->logged_in == 1) {
-        write_to_client(client, "Already logged in!\n");
+        write_to_client(client, "ERR: Already logged in.\n");
         return;
     }
 
@@ -85,7 +85,7 @@ void login(Client *client, int8 *username, int8 *password)
     // We will not create a file here since that should already be handled by init
     if (!file)
     {
-        write_to_client(client, "Database file doesn't exist.\n");
+        write_to_client(client, "ERR: Users database not found.\n");
         return;
     }
 
@@ -108,22 +108,22 @@ void login(Client *client, int8 *username, int8 *password)
                 strncpy(client->username, (char *)username, sizeof(client->username) - 1);
                 client->username[sizeof(client->username) - 1] = '\0';
                 client->logged_in = 1;
-                write_to_client(client, "Logged in successfully!\n");
+                write_to_client(client, "OK: Logged in successfully.\n");
             } else {
-                write_to_client(client, "Wrong password. \n");
+                write_to_client(client, "ERR: Wrong password.\n");
             }
             return;
         }
     }
 
     fclose(file);
-    write_to_client(client, "No such user exists.\n");
+    write_to_client(client, "ERR: No such user exists.\n");
     return;
 }
 
 void logout(Client *client) {
     client->logged_in = 0;
-    write_to_client(client, "Logged out successfully!\n");
+    write_to_client(client, "OK: Logged out successfully.\n");
     c_continuation = false;
     return;
 }
