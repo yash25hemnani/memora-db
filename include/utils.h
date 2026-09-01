@@ -28,4 +28,7 @@ void append(int8 *ch, int8 *buffer, int8 *path);
 
 int16 prompt(int8 *message, int8 *buffer, int16 size);
 
+int16 add_to_file(int8 *db_name, int8 *path);
+int16 remove_from_file(int8 *db_name, int8 *path);
+
 #endif

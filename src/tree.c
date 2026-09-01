@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "tree.h"
 #include "memora.h"
+#include "utils.h"
 
 // The single global root of the tree, tagged as both Root and Node; `uplink` points back to itself since it has no parent.
 Nullptr null_ptr = 0;
@@ -9,34 +10,34 @@ Tree *root = NULL;
 
 void init_tree(void)
 {
-    root = malloc(sizeof(Tree));
+   root = malloc(sizeof(Tree));
 
-    if (root == NULL)
-    {
-        perror("malloc");
-        return;
-    }
+   if (root == NULL)
+   {
+      perror("malloc");
+      return;
+   }
 
-    root->node.tag = TagRoot | TagNode;
-    root->node.uplink = (Node *)root;
-    root->node.left = NULL;
-    root->node.sibling = NULL;
-    root->node.leaves = NULL;
+   root->node.tag = TagRoot | TagNode;
+   root->node.uplink = (Node *)root;
+   root->node.left = NULL;
+   root->node.sibling = NULL;
+   root->node.leaves = NULL;
 
-    strncpy((char *)root->node.path, "/", sizeof(root->node.path) - 1);
-    root->node.path[sizeof(root->node.path) - 1] = '\0';
+   strncpy((char *)root->node.path, "/", sizeof(root->node.path) - 1);
+   root->node.path[sizeof(root->node.path) - 1] = '\0';
 
-    return &root;
+   return;
 }
 
 void reset_tree(void)
 {
-    if (root != NULL)
-    {
-        free_tree(&root->node);
-        free(root);
-        root = NULL;
-    }
+   if (root != NULL)
+   {
+      free_tree(&root->node);
+      free(root);
+      root = NULL;
+   }
 }
 
 int8 *indent(int16 n)
@@ -65,6 +66,13 @@ int8 *indent(int16 n)
 
 void print_tree(Client *client, Tree *_root)
 {
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "No database selected.\n");
+      return;
+   }
+
+   write_to_client(client, "Printing Tree...\n");
    print_node(client, (Node *)_root, 0);
 }
 
@@ -139,8 +147,14 @@ void free_tree(Node *node)
    free(node);
 }
 
-void add_node(Client *client, int8 *path)
+void add_node(Client *client, int8 *path, bool persist)
 {
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "No database selected.\n");
+      return;
+   }
+
    // Handling cases for root
    if (strcmp((char *)path, (char *)"/") == 0)
    {
@@ -216,6 +230,9 @@ void add_node(Client *client, int8 *path)
       char *msg = "SUCCESS: Added a child to the node\n";
       write(client->fd, msg, strlen(msg));
 
+      if (persist)
+         add_to_file((int8 *)client->active_db, path);
+
       return;
    }
 
@@ -282,10 +299,19 @@ void add_node(Client *client, int8 *path)
 
    char *msg = "SUCCESS: Added a sibling to the node\n";
    write(client->fd, msg, strlen(msg));
+
+   if (persist)
+      add_to_file((int8 *)client->active_db, path);
 }
 
 void remove_node(Client *client, int8 *path)
 {
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "No database selected.\n");
+      return;
+   }
+
    // Removes all childs // Possibly store in a recycle bin
    if (strcmp((char *)path, (char *)"/") == 0)
    {
@@ -343,6 +369,7 @@ void remove_node(Client *client, int8 *path)
 
       msg = "MSG: Child removed successfully.\n";
       write(client->fd, msg, strlen(msg));
+      remove_from_file((int8 *)client->active_db, path);
       return;
    }
    else if (node->tag == TagSibling)
@@ -353,6 +380,7 @@ void remove_node(Client *client, int8 *path)
 
       msg = "MSG: Sibling removed successfully.\n";
       write(client->fd, msg, strlen(msg));
+      remove_from_file((int8 *)client->active_db, path);
       return;
    }
    else

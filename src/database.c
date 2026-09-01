@@ -189,7 +189,6 @@ void use_database(Client *client, int8 *db_name)
     
     int8 db_path[256];
     snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
-    write_to_client(client, (char *)db_path);
 
     FILE *file = fopen((char *)db_path, "r");
 
@@ -271,7 +270,13 @@ void load_tree(Client *client){
     int8 line[256];
 
     while(fgets((char *)line, sizeof(line), file)) {
-        add_node(client, line);
+        line[strcspn((char *)line, "\n")] = '\0';
+
+        // Root already exists from init_tree(); the file's "/" line is just a marker.
+        if (strcmp((char *)line, "/") == 0)
+            continue;
+
+        add_node(client, line, false);
     }
 
     write_to_client(client, "Database loaded successfully!\n");

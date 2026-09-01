@@ -79,7 +79,7 @@ extern Tree *root;
 
 void print_tree(Client *client, Tree *_root);
 Node* find_node(Client *client, Node* node, int8 *path);
-void add_node(Client *client, int8 *path);
+void add_node(Client *client, int8 *path, bool persist);
 void remove_node(Client *client, int8 *path);
 
 int8 *indent(int16 n);

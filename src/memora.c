@@ -44,9 +44,7 @@ int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
         return CMD_ERR_ARGS;
     }
 
-    char *msg = "Printing Tree...\n";
-    write_to_client(client, msg);
-    print_tree(client, &root);
+    print_tree(client, root);
     return CMD_OK;
 }
 
@@ -73,7 +71,7 @@ void create_node_handler(Client *client, int32 argc, int8 argv[][64])
     // Accepets two args - path and folder
     int8 *path = argv[0];
 
-    add_node(client, path);
+    add_node(client, path, true);
 }
 
 void remove_node_handler(Client *client, int32 argc, int8 argv[][64])

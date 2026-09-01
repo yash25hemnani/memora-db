@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "database.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -98,12 +99,70 @@ int16 prompt(int8 *message, int8 *buffer, int16 size)
    {
       return STATUS_ERROR;
    }
-   
+
    // Get message from user and write it to buffer
    // Strip trailing newline fgets keeps
    size_t len = strlen((char *)buffer);
    if (len > 0 && buffer[len - 1] == '\n')
       buffer[len - 1] = '\0';
 
+   return STATUS_OK;
+}
+
+int16 remove_from_file(int8 *db_name, int8 *path)
+{
+   // Accepts a line to remove
+   int8 db_path[256];
+   snprintf(db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
+
+   FILE *file = fopen(db_path, "r");
+
+   int8 temp_file_name[256];
+   snprintf(temp_file_name, sizeof(temp_file_name), "temp-%d.db", getpid());
+
+   FILE *temp = fopen(temp_file_name, "w");
+
+   if (!file)
+   {
+      return STATUS_ERROR;
+   }
+
+   int8 line[256];
+   while (fgets(line, sizeof(line), file))
+   {
+      // We need to compare \n as well otherwise all the paths starting from path will be removed
+      if (strncmp((char *)line, (char *)path, strlen((char *)path)) == 0 &&
+          line[strlen((char *)path)] == '\n')
+      {
+         continue;
+      }
+
+      fputs((char *)line, temp);
+   }
+
+   fclose(file);
+   fclose(temp);
+
+   // Delete db_path file
+   remove(db_path);
+   // Rename temp to db_file name
+   rename(temp_file_name, db_path);
+}
+
+int16 add_to_file(int8 *db_name, int8 *path)
+{
+   int8 db_path[256];
+   snprintf(db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
+
+   FILE *file = fopen(db_path, "a");
+
+   if (!file)
+   {
+      return STATUS_ERROR;
+   }
+   fputs((char *)path, file);
+   fputs("\n", file);
+
+   fclose(file);
    return STATUS_OK;
 }
