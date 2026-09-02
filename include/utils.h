@@ -31,4 +31,7 @@ int16 prompt(int8 *message, int8 *buffer, int16 size);
 int16 add_to_file(int8 *db_name, int8 *path);
 int16 remove_from_file(int8 *db_name, int8 *path);
 
+int16 add_leaf_to_file(int8 *db_name, int8 *path, int8 *key, int8 *value);
+int16 remove_leaf_from_file(int8 *db_name, int8 *path, int8 *key);
+
 #endif

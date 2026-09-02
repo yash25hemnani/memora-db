@@ -25,13 +25,11 @@ int32 ping_handler(Client *client, int32 argc, int8 argv[][64])
     // This command should not have any arguments
     if (argc != 0)
     {
-        char *msg = "ERR: Too many arguments.\n";
-        write_to_client(client, msg);
+        write_to_client(client, "ERR: Too many arguments.\n");
         return CMD_OK;
     }
 
-    char *msg = "pong\n";
-    write_to_client(client, msg);
+    write_to_client(client, "pong\n");
     return CMD_ERR_ARGS;
 }
 
@@ -40,8 +38,7 @@ int32 tree_handler(Client *client, int32 argc, int8 argv[][64])
     // This command should not have any arguments
     if (argc != 0)
     {
-        char *msg = "ERR: Too many arguments.\n";
-        write_to_client(client, msg);
+        write_to_client(client, "ERR: Too many arguments.\n");
         return CMD_ERR_ARGS;
     }
 
@@ -57,13 +54,11 @@ void search_node_handler(Client *client, int32 argc, int8 argv[][64])
 
     if (node)
     {
-        char *msg = "OK: Node found.\n";
-        write_to_client(client, msg);
+        write_to_client(client, "OK: Node found.\n");
     }
     else
     {
-        char *msg = "ERR: Node not found.\n";
-        write_to_client(client, msg);
+        write_to_client(client, "ERR: Node not found.\n");
     }
 }
 
@@ -124,6 +119,39 @@ void print_hash_table_handler(Client *client, int32 argc, int8 argv[][64])
     print_hash_table(client, hash_table);
 }
 
+void create_leaf_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *path = argv[0];
+    int8 *key = argv[1];
+    int8 *value = argv[2];
+
+    add_leaf(client, path, key, value);
+}
+
+void delete_leaf_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *path = argv[0];
+    int8 *key = argv[1];
+
+    remove_leaf(client, path, key);
+}
+
+void print_leaves_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *path = argv[0];
+
+    print_leaves(client, path);
+}
+
+void update_leaf_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *path = argv[0];
+    int8 *key = argv[1];
+    int8 *value = argv[2];
+
+    update_leaf(client, path, key, value);
+}
+
 CmdHandler handlers[] = {
     {(int8 *)"ping", 0, 0, ping_handler, false},
     {(int8 *)"tree", 0, 0, tree_handler, true},
@@ -136,6 +164,10 @@ CmdHandler handlers[] = {
     {(int8 *)"use-database", 1, 1, use_database_handler, true},
     {(int8 *)"list-databases", 0, 0, list_database_handler, true},
     {(int8 *)"hash-table", 0, 0, print_hash_table_handler, true},
+    {(int8 *)"create-leaf", 3, 3, create_leaf_handler, true},
+    {(int8 *)"delete-leaf", 2, 2, delete_leaf_handler, true},
+    {(int8 *)"update-leaf", 3, 3, update_leaf_handler, true},
+    {(int8 *)"print-leaves", 1, 1, print_leaves_handler, true},
 };
 
 // Get pointer to that function
@@ -158,15 +190,13 @@ int8 verify_arg_counts(Client *client, int8 token_count, int8 max_args, int8 min
 {
     if (token_count > max_args)
     {
-        char *err_msg = "ERR: Too many arguments.\n";
-        write_to_client(client, err_msg);
+        write_to_client(client, "ERR: Too many arguments.\n");
         return STATUS_FALSE;
     }
 
     if (token_count < min_args)
     {
-        char *err_msg = "ERR: Too few arguments.\n";
-        write_to_client(client, err_msg);
+        write_to_client(client, "ERR: Too few arguments.\n");
         return STATUS_FALSE;
     }
 
@@ -206,8 +236,7 @@ void child_loop(Client *client)
     // Check if token count is zero
     if (token_count < 1)
     {
-        char *err = "ERR: Empty command.\n";
-        write_to_client(client, err);
+        write_to_client(client, "ERR: Empty command.\n");
         return;
     }
 
@@ -219,8 +248,7 @@ void child_loop(Client *client)
 
     if (handler == NULL)
     {
-        char *err = "ERR: Unknown command.\n";
-        write_to_client(client, err);
+        write_to_client(client, "ERR: Unknown command.\n");
         return;
     }
 
@@ -296,8 +324,7 @@ void mainloop(int server_fd)
     {
         // Child Process - Handle that particular client
         c_continuation = true;
-        char *status = "OK: Connected to Memora.\n";
-        write_to_client(client, status);
+        write_to_client(client, "OK: Connected to Memora.\n");
 
         while (c_continuation)
         {

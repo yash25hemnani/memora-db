@@ -85,8 +85,7 @@ int16 create_database(Client *client, int8 *db_name)
 
     if (file)
     {
-        char *msg = "ERR: Database already exists.\n";
-        write_to_client(client, msg);
+        write_to_client(client, "ERR: Database already exists.\n");
 
         fclose(file);
         return STATUS_ERROR;
@@ -112,8 +111,7 @@ int16 create_database(Client *client, int8 *db_name)
         return STATUS_ERROR;
     }
 
-    char *msg = "OK: Database created successfully.\n";
-    write_to_client(client, msg);
+    write_to_client(client, "OK: Database created successfully.\n");
 
     fclose(file);
 
@@ -282,7 +280,20 @@ void load_tree(Client *client)
         if (strcmp((char *)line, "/") == 0)
             continue;
 
-        add_node(client, line, false);
+        int8 buffer[256];
+        int8 *tokens[8];
+        zero(buffer, 256);
+        strncpy((char *)buffer, (char *)line, strlen((char *)line));
+        int32 token_count = split('|', buffer, tokens, 10);
+
+        if (token_count == 3)
+        {
+            add_leaf(client, tokens[0], tokens[1], tokens[2]);
+        }
+        else if (token_count == 1)
+        {
+            add_node(client, line, false);
+        }
     }
 
     write_to_client(client, "OK: Database loaded successfully.\n");

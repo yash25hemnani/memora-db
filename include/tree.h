@@ -82,6 +82,12 @@ Node* find_node(Client *client, Node* node, int8 *path);
 void add_node(Client *client, int8 *path, bool persist);
 void remove_node(Client *client, int8 *path);
 
+void add_leaf(Client *client, int8 *path, int8 *key, int8 *value);
+void remove_leaf(Client *client, int8 *path, int8 *key);
+void update_leaf(Client *client, int8 *path, int8 *key, int8 *value);
+void print_leaves(Client *client, int8 *path);
+int32 get_leaf_count(Node *node);
+
 int8 *indent(int16 n);
 
 #endif

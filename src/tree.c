@@ -35,7 +35,11 @@ void reset_tree(void)
 {
    if (root != NULL)
    {
-      free_tree(&root->node);
+      // free_tree() frees the node it's given, so only hand it root's
+      // children/siblings here - root itself is freed separately below,
+      // and &root->node is the same address as root (Tree is a union).
+      free_tree(root->node.left);
+      free_tree(root->node.sibling);
       free(root);
       root = NULL;
    }
@@ -105,6 +109,13 @@ void print_node(Client *client, Node *node, int16 depth)
    }
 
    write_to_client(client, (char *)node->path);
+
+   int32 leaf_count = get_leaf_count(node);
+   int8 count_buffer[8];
+   snprintf(count_buffer, sizeof(count_buffer), "(%d)", leaf_count);
+   
+   write_to_client(client, " ");
+   write_to_client(client, count_buffer);
    write_to_client(client, (char *)"\n");
 
    // Check child
@@ -165,8 +176,7 @@ void add_node(Client *client, int8 *path, bool persist)
    // Handling cases for root
    if (strcmp((char *)path, (char *)"/") == 0)
    {
-      char *err = "ERR: Can't re-create root.\n";
-      write_to_client(client, err);
+      write_to_client(client, "ERR: Can't re-create root.\n");
       return;
    }
 
@@ -186,8 +196,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
       if (token_count == 0)
       {
-         char *err = "ERR: Invalid Path.\n";
-         write_to_client(client, err);
+         write_to_client(client, "ERR: Invalid Path.\n");
          return;
       }
 
@@ -232,8 +241,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
    if (token_count == 0)
    {
-      char *err = "ERR: Invalid path.\n";
-      write_to_client(client, err);
+      write_to_client(client, "ERR: Invalid path.\n");
       return;
    }
 
@@ -255,8 +263,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
    if (!node)
    {
-      char *err = "ERR: Parent path not found.\n";
-      write_to_client(client, err);
+      write_to_client(client, "ERR: Parent path not found.\n");
       return;
    }
 
@@ -279,8 +286,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
       strcpy((char *)node->left->path, (char *)node_path_buffer);
 
-      char *msg = "OK: Added child node.\n";
-      write_to_client(client, msg);
+      write_to_client(client, "OK: Added child node.\n");
 
       insert(hash_table, path, (int8 *)node->left);
 
@@ -295,8 +301,7 @@ void add_node(Client *client, int8 *path, bool persist)
    // If child exists, check if same name
    if (strcmp((char *)node_path_buffer, (char *)node->left->path) == 0)
    {
-      char *err = "ERR: Already exists.\n";
-      write_to_client(client, err);
+      write_to_client(client, "ERR: Already exists.\n");
       return;
    }
 
@@ -316,8 +321,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
       strcpy((char *)node->left->sibling->path, (char *)node_path_buffer);
 
-      char *msg = "OK: Added sibling node.\n";
-      write_to_client(client, msg);
+      write_to_client(client, "OK: Added sibling node.\n");
 
       insert(hash_table, path, (int8 *)node->left->sibling);
 
@@ -336,8 +340,7 @@ void add_node(Client *client, int8 *path, bool persist)
    {
       if (strcmp((char *)node_path_buffer, (char *)sibling->path) == 0)
       {
-         char *err = "ERR: Already exists.\n";
-         write_to_client(client, err);
+         write_to_client(client, "ERR: Already exists.\n");
          return;
       }
 
@@ -360,8 +363,7 @@ void add_node(Client *client, int8 *path, bool persist)
 
    strcpy((char *)sibling->sibling->path, (char *)node_path_buffer);
 
-   char *msg = "OK: Added sibling node.\n";
-   write_to_client(client, msg);
+   write_to_client(client, "OK: Added sibling node.\n");
 
    insert(hash_table, path, (int8 *)sibling->sibling);
 
@@ -382,8 +384,7 @@ void remove_node(Client *client, int8 *path)
    // Removes all childs // Possibly store in a recycle bin
    if (strcmp((char *)path, (char *)"/") == 0)
    {
-      char *err = "ERR: Can't remove root node.\n";
-      write_to_client(client, err);
+      write_to_client(client, "ERR: Can't remove root node.\n");
       return;
    }
 
@@ -400,8 +401,7 @@ void remove_node(Client *client, int8 *path)
       // No path specified
       if (token_count == 0)
       {
-         char *err = "ERR: Invalid Path.\n";
-         write_to_client(client, err);
+         write_to_client(client, "ERR: Invalid Path.\n");
          return;
       }
 
@@ -417,8 +417,7 @@ void remove_node(Client *client, int8 *path)
 
          if (!node)
          {
-            char *err = "ERR: Node not found.\n";
-            write_to_client(client, err);
+            write_to_client(client, "ERR: Node not found.\n");
             return;
          }
 
@@ -430,8 +429,7 @@ void remove_node(Client *client, int8 *path)
 
    if (!node)
    {
-      char *err = "ERR: Node not found.\n";
-      write_to_client(client, err);
+      write_to_client(client, "ERR: Node not found.\n");
       return;
    }
 
@@ -476,3 +474,309 @@ void remove_node(Client *client, int8 *path)
    }
 }
 
+/*
+
+We will store the leaves as follows
+All lines that do not included | are nodes
+The ones that do include them are a single set of key value pairs
+
+/
+/users
+/users|name|Yash
+/users|age|22
+/users/test
+/users/test|email|yash@example.com
+
+*/
+
+void free_leaf(Leaf *leaf)
+{
+   leaf->right = NULL;
+   leaf->left = NULL;
+   free(leaf->value);
+   free(leaf);
+}
+
+Leaf *get_leaf_by_key(Client *client, int8 *path, int8 *key)
+{
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "ERR: No database selected.\n");
+      return;
+   }
+
+   // Get the node
+   Node *node = (Node *)get_value(hash_table, path);
+
+   Leaf *leaf = node->leaves;
+
+   while (leaf)
+   {
+      if (strcmp((char *)key, (char *)leaf->key) == 0)
+      {
+         return leaf;
+      }
+
+      leaf = leaf->right;
+   }
+
+   write_to_client(client, "ERR: No such leaf exists.\n");
+   return NULL;
+}
+
+int8 *get_value_by_key(Client *client, int8 *path, int8 *key)
+{
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "ERR: No database selected.\n");
+      return;
+   }
+
+   // Get the node
+   Node *node = (Node *)get_value(hash_table, path);
+
+   Leaf *leaf = node->leaves;
+
+   while (leaf)
+   {
+      if (strcmp((char *)key, (char *)leaf->key) == 0)
+      {
+         return leaf->value;
+      }
+   }
+
+   write_to_client(client, "ERR: No such leaf exists.\n");
+   return NULL;
+}
+
+void add_leaf(Client *client, int8 *path, int8 *key, int8 *value)
+{
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "ERR: No database selected.\n");
+      return;
+   }
+
+   // Get the node
+   Node *node = (Node *)get_value(hash_table, path);
+
+   if (!node)
+   {
+      write_to_client(client, "ERR: Node not found.\n");
+      return;
+   }
+
+   // If node found, add the key and value
+   // If first leaf
+   Leaf *leaf = malloc(sizeof(Leaf));
+
+   // Copy key to array
+   size_t key_len = strlen((char *)key);
+   if (key_len >= sizeof(leaf->key))
+      key_len = sizeof(leaf->key) - 1;
+
+   strncpy((char *)leaf->key, (char *)key, key_len);
+   leaf->key[key_len] = '\0';
+
+   // Copy value to memory
+   leaf->size = (int16)strlen((char *)value);
+   leaf->value = malloc(leaf->size + 1);
+   memcpy(leaf->value, value, leaf->size);
+   leaf->value[leaf->size] = '\0';
+
+   leaf->tag = TagLeaf;
+
+   if (node->leaves == NULL)
+   {
+      node->leaves = leaf;
+      leaf->left = (Tree *)node;
+      leaf->right = NULL;
+   }
+   else
+   {
+      Leaf *t_leaf = node->leaves;
+      while (t_leaf->right)
+      {
+         t_leaf = t_leaf->right;
+      }
+      t_leaf->right = leaf;
+      leaf->left = (Tree *)t_leaf;
+      leaf->right = NULL;
+   }
+
+   add_leaf_to_file(client->active_db, path, key, value);
+   write_to_client(client, "OK: Leaf added successfully.\n");
+}
+
+void remove_leaf(Client *client, int8 *path, int8 *key)
+{
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "ERR: No database selected.\n");
+      return;
+   }
+
+   // Get the node
+   Node *node = (Node *)get_value(hash_table, path);
+
+   if (!node)
+   {
+      write_to_client(client, "ERR: Node not found.\n");
+      return;
+   }
+
+   // Leaf *leaf = node->leaves;
+
+   // while (leaf)
+   // {
+   //    if (strcmp((char *)leaf->key, (char *)key) == 0)
+   //    {
+   //       break;
+   //    }
+
+   //    leaf = leaf->right;
+   // }
+
+   Leaf *leaf = get_leaf_by_key(client, path, key);
+
+   if (!leaf)
+   {
+      write_to_client(client, "ERR: Leaf not found.\n");
+      return;
+   }
+
+   // If leaf is first leaf
+   if (leaf->left == node)
+   {
+      if (leaf->right == NULL)
+      {
+         // Nothing connected to leaf
+         leaf->left = NULL;
+         node->leaves = NULL;
+      }
+      else
+      {
+         // Something connected to leaf
+         leaf->left = leaf->right;
+         leaf->right->left = node;
+      }
+   }
+   else if (leaf->right != NULL && leaf->left != NULL)
+   {
+      // If middle leaf
+      leaf->left->leaf.right = leaf->right;
+      leaf->right->left = leaf->left;
+   }
+   else
+   {
+      // Last leaf
+      leaf->left->leaf.right = NULL;
+   }
+
+   remove_leaf_from_file(client->active_db, path, key);
+   free_leaf(leaf);
+   write_to_client(client, "OK: Leaf removed successfully.\n");
+}
+
+void print_leaves(Client *client, int8 *path)
+{
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "ERR: No database selected.\n");
+      return;
+   }
+
+   // Get the node
+   Node *node = (Node *)get_value(hash_table, path);
+
+   if (!node)
+   {
+      write_to_client(client, "ERR: Node not found.\n");
+      return;
+   }
+
+   Leaf *leaf = node->leaves;
+
+   if (!leaf) {
+      write_to_client(client, "ERR: The node has no leaves.\n");
+      return;
+   }
+
+   write_to_client(client, (char *)path);
+   write_to_client(client, " --> ");
+   
+   while (leaf)
+   {
+      write_to_client(client, leaf->key);
+      write_to_client(client, ":");
+      write_to_client(client, leaf->value);
+      
+      if (leaf->right) {
+         write_to_client(client, " --> ");
+      }
+      
+      leaf = leaf->right;
+   }
+   
+   write_to_client(client, "\n");
+   return;
+   
+}
+
+int32 get_leaf_count(Node *node)
+{
+
+   Leaf *leaf = node->leaves;
+
+   int32 count = 0;
+
+   while (leaf)
+   {
+      count++;
+      leaf = leaf->right;
+   }
+
+   return count;
+}
+
+void update_leaf(Client *client, int8 *path, int8 *key, int8 *value)
+{
+   if (strlen(client->active_db) == 0)
+   {
+      write_to_client(client, "ERR: No database selected.\n");
+      return;
+   }
+
+   // Get the node
+   Node *node = (Node *)get_value(hash_table, path);
+
+   if (!node)
+   {
+      write_to_client(client, "ERR: Node not found.\n");
+      return;
+   }
+
+   Leaf *leaf = get_leaf_by_key(client, path, key);
+
+   if (!leaf)
+   {
+      write_to_client(client, "ERR: Leaf not found.\n");
+      return;
+   }
+
+   // Replace the value buffer rather than reuse it - the new value can be a
+   // different length than what was originally allocated for it.
+   int16 new_size = (int16)strlen((char *)value);
+   int8 *new_value = malloc(new_size + 1);
+   memcpy(new_value, value, new_size);
+   new_value[new_size] = '\0';
+
+   free(leaf->value);
+   leaf->value = new_value;
+   leaf->size = new_size;
+
+   remove_leaf_from_file(client->active_db, path, key);
+   add_leaf_to_file(client->active_db, path, key, value);
+
+   write_to_client(client, "OK: Leaf updated successfully.\n");
+}

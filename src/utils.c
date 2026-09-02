@@ -122,8 +122,10 @@ int16 remove_from_file(int8 *db_name, int8 *path)
 
    FILE *temp = fopen(temp_file_name, "w");
 
-   if (!file)
+   if (!file || !temp)
    {
+      fclose(file);
+      fclose(temp);
       return STATUS_ERROR;
    }
 
@@ -166,5 +168,76 @@ int16 add_to_file(int8 *db_name, int8 *path)
    fputs("\n", file);
 
    fclose(file);
+   return STATUS_OK;
+}
+
+int16 add_leaf_to_file(int8 *db_name, int8 *path, int8* key, int8 *value)
+{
+   int8 db_path[256];
+   snprintf(db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
+
+   FILE *file = fopen(db_path, "a");
+
+   if (!file)
+   {
+      return STATUS_ERROR;
+   }
+
+   fputs((char *)path, file);
+   fputs((char *)"|", file);
+   fputs((char *)key, file);
+   fputs((char *)"|", file);
+   fputs((char *)value, file);
+   fputs("\n", file);
+
+   fclose(file);
+   return STATUS_OK;
+}
+
+
+int16 remove_leaf_from_file(int8 *db_name, int8 *path, int8 *key)
+{
+   // Accepts a line to remove
+   int8 db_path[256];
+   snprintf(db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, (char *)db_name);
+
+   FILE *file = fopen(db_path, "r");
+
+   int8 temp_file_name[256];
+   snprintf(temp_file_name, sizeof(temp_file_name), "temp-%d.db", getpid());
+
+   FILE *temp = fopen(temp_file_name, "w");
+
+   if (!file || !temp)
+   {
+      fclose(file);
+      fclose(temp);
+      return STATUS_ERROR;
+   }
+
+   int8 line[256];
+   int8 leaf_entry[256];
+   snprintf(leaf_entry, sizeof(leaf_entry), "%s|%s|", (char *)path, (char *)key);
+
+   while (fgets(line, sizeof(line), file))
+   {
+      // Compare including the trailing '|' so a key that is only a prefix
+      // of another key (e.g. "name" vs "name2") is not also removed.
+      if (strncmp((char *)line, (char *)leaf_entry, strlen((char *)leaf_entry)) == 0)
+      {
+         continue;
+      }
+
+      fputs((char *)line, temp);
+   }
+
+   fclose(file);
+   fclose(temp);
+
+   // Delete db_path file
+   remove(db_path);
+   // Rename temp to db_file name
+   rename(temp_file_name, db_path);
+
    return STATUS_OK;
 }
