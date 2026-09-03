@@ -106,6 +106,21 @@ void use_database_handler(Client *client, int32 argc, int8 argv[][64])
     use_database(client, db_name);
 }
 
+void delete_database_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *db_name = argv[0];
+
+    delete_database(client, db_name);
+}
+
+void rename_database_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *old_name = argv[0];
+    int8 *new_name = argv[1];
+
+    rename_database(client, old_name, new_name);
+}
+
 void list_database_handler(Client *client, int32 argc, int8 argv[][64])
 {
     int8 *db_name = argv[0];
@@ -162,6 +177,8 @@ CmdHandler handlers[] = {
     {(int8 *)"remove-node", 1, 1, remove_node_handler, true},
     {(int8 *)"create-database", 1, 1, create_database_handler, true},
     {(int8 *)"use-database", 1, 1, use_database_handler, true},
+    {(int8 *)"delete-database", 1, 1, delete_database_handler, true},
+    {(int8 *)"rename-database", 2, 2, rename_database_handler, true},
     {(int8 *)"list-databases", 0, 0, list_database_handler, true},
     {(int8 *)"hash-table", 0, 0, print_hash_table_handler, true},
     {(int8 *)"create-leaf", 3, 3, create_leaf_handler, true},

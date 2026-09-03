@@ -40,6 +40,7 @@ extern HashTable *hash_table;
 int32 hash(int8 *key, int32 capacity);
 HashTable *create_table(int32 capacity);
 void free_table(HashTable *hash_table);
+int16 resize_table(HashTable *hash_table, int32 capacity);
 int8 *get_value(HashTable *hash_table, int8 *key);
 void print_hash_table(Client *client, HashTable *hash_table);
 Entry *get_entry(HashTable *hash_table, int8 *key);

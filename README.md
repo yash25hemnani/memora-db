@@ -15,7 +15,8 @@ eventually hold key/value **leaves**.
 - **Hand-rolled hash table** — separate chaining, `path → Node*`, so lookups
   don't require walking the tree.
 - **Ownership-scoped persistence** — every database is a flat file under
-  `database/`, replayed line-by-line on `use-database`.
+  `database/`, replayed line-by-line on `use-database`. Nodes are stored as
+  `<path>` lines and leaves as `<path>|<key>|<value>` lines.
 
 ## Table of contents
 
@@ -47,13 +48,18 @@ create-database mydb
 OK: Ownership added successfully.
 OK: Database created successfully.
 use-database mydb
-OK: Database loaded successfully!
+OK: Database loaded successfully.
 OK: Using database 'mydb'.
 create-node /users
 OK: Added child node.
+create-leaf /users name Yash
+OK: Leaf added successfully.
 tree
 OK: Printing tree.
-child: /users
+/ (0)
+  child: /users (1)
+print-leaves /users
+/users --> name:Yash
 ```
 
 Every response follows the same convention: `OK: <message>` on success,
@@ -71,16 +77,18 @@ Registered in `handlers[]` ([memora.c](src/memora.c)):
 | `logout` | 0 | yes | End the session |
 | `create-database` | `<name>` | yes | Create a new database, owned by the caller |
 | `use-database` | `<name>` | yes | Load a database's tree + hash table |
+| `delete-database` | `<name>` | yes | Delete a database owned by the caller |
+| `rename-database` | `<old_name> <new_name>` | yes | Rename a database owned by the caller |
 | `list-databases` | 0 | yes | List databases owned by the caller |
 | `create-node` | `<path>` | yes | Add a path node under the active database |
 | `remove-node` | `<path>` | yes | Remove a path node (and its subtree) |
 | `search-node` | `<path>` | yes | Check whether a path exists |
 | `tree` | 0 | yes | Print the active database's tree |
 | `hash-table` | 0 | yes | Dump the active database's hash table buckets |
-
-`delete-database` and `rename-database` exist in [database.c](src/database.c)
-but aren't yet registered as commands. Key/value `set`/`get` handlers for
-`Leaf` entries aren't implemented yet either.
+| `create-leaf` | `<path> <key> <value>` | yes | Add a key/value leaf to the node at `path` |
+| `update-leaf` | `<path> <key> <value>` | yes | Replace the value of an existing leaf |
+| `delete-leaf` | `<path> <key>` | yes | Remove a leaf from the node at `path` |
+| `print-leaves` | `<path>` | yes | Print all leaves on the node at `path` |
 
 ## Data structures
 
@@ -88,9 +96,10 @@ but aren't yet registered as commands. Key/value `set`/`get` handlers for
 
 Each path segment is a `Node`. A `Node` points at its **first child**
 (`left`) and its **next sibling** (`sibling`) — a classic LCRS encoding of
-an arbitrary-arity tree using only two pointers per node. A `Leaf` (not yet
-wired to any command handler) hangs off a `Node`'s `leaves` list to store
-an actual key/value pair.
+an arbitrary-arity tree using only two pointers per node. A `Leaf` hangs
+off a `Node`'s `leaves` list (a singly-linked list via `right`) to store an
+actual key/value pair, managed with `create-leaf`/`update-leaf`/
+`delete-leaf`/`print-leaves`.
 
 ```mermaid
 graph TD
@@ -132,8 +141,9 @@ graph LR
     b2 --> e3["/b → Node*"]
 ```
 
-No resize logic exists yet — `LOAD_FACTOR_THRESHOLD` is defined but
-unused, so long-lived tables with many entries degrade to long chains.
+When `count / capacity` reaches `LOAD_FACTOR_THRESHOLD` (0.7), `insert`
+doubles the capacity via `resize_table`, which rehashes every existing
+entry into a fresh bucket array before continuing.
 
 ## Project layout
 
@@ -154,10 +164,6 @@ c-database-design/
 
 ## Known limitations
 
-- No key/value `set`/`get` commands yet — the tree can be shaped but not
-  used to store data (`Leaf.key`/`value`/`size` are unused).
-- Hash table never resizes (`LOAD_FACTOR_THRESHOLD` is defined, unused).
-- `delete-database` / `rename-database` aren't wired into `handlers[]`.
 - Passwords are compared in plaintext (`password_hash` is a field name,
   not an actual hash) and admin creation happens over the server's own
   stdin, not over the wire.

@@ -52,14 +52,16 @@ void print_hash_table(Client *client, HashTable *hash_table)
 
         Entry *entry = hash_table->buckets[i];
 
-        if (entry) {
+        if (entry)
+        {
             print_entry_list(client, entry);
-        } else {
+        }
+        else
+        {
             write_to_client(client, "NULL");
         }
-        
-        write_to_client(client, "\n");
 
+        write_to_client(client, "\n");
     }
 }
 
@@ -151,6 +153,7 @@ int16 exists(HashTable *hash_table, int8 *key)
 
 int16 insert(HashTable *hash_table, int8 *key, int8 *value)
 {
+
     if (exists(hash_table, key))
     {
         return STATUS_ERROR; // Already exists
@@ -176,6 +179,11 @@ int16 insert(HashTable *hash_table, int8 *key, int8 *value)
         new_entry->prev = NULL;
 
         hash_table->buckets[index] = new_entry;
+
+        if ((float)hash_table->count / hash_table->capacity >= LOAD_FACTOR_THRESHOLD)
+        {
+            resize_table(hash_table, hash_table->capacity * 2);
+        }
 
         return STATUS_OK;
     }
@@ -239,6 +247,53 @@ int16 delete(HashTable *hash_table, int8 *key)
     // Free the strdup'd key along with the entry
     free(entry->key);
     free(entry);
+
+    return STATUS_OK;
+}
+
+int16 resize_table(HashTable *hash_table, int32 capacity)
+{
+    Entry **new_buckets = malloc(sizeof(Entry *) * capacity);
+
+    if (new_buckets == NULL)
+    {
+        return STATUS_ERROR;
+    }
+
+    zero(new_buckets, sizeof(Entry *) * capacity);
+
+    for (int32 i = 0; i < hash_table->capacity; i++)
+    {
+        Entry *entry = hash_table->buckets[i];
+
+        while (entry != NULL)
+        {
+            Entry *next = entry->next; // save before entry is relinked below
+
+            int32 index = hash(entry->key, capacity);
+
+            // Prepend entry to new_buckets[index]'s chain: it becomes the
+            // new head, pointing forward to whatever was already there
+            // (NULL for an empty bucket), and that old head's prev is
+            // pointed back at entry so the chain stays doubly-linked.
+            entry->prev = NULL;
+            // new_buckets[index] is a pointer - it was the initial head
+            entry->next = new_buckets[index];
+            if (new_buckets[index] != NULL)
+            {
+                // Move head to second position and point prev to the new head
+                new_buckets[index]->prev = entry;
+            }
+            // Point index to the new head
+            new_buckets[index] = entry;
+            // Move to next
+            entry = next;
+        }
+    }
+
+    free(hash_table->buckets);
+    hash_table->buckets = new_buckets;
+    hash_table->capacity = capacity;
 
     return STATUS_OK;
 }

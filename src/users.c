@@ -1,5 +1,6 @@
 #include "users.h"
 #include "memora.h"
+#include "database.h"
 
 void init(void)
 {
@@ -60,8 +61,25 @@ void create_admin(FILE *file)
     prompt((int8 *)"Enter admin password: ", password, sizeof(password));
 
     fprintf(file, "%s|%s|%s", (char *)username, (char *)password, ROLE_ADMIN_NAME);
-
     fclose(file);
+
+    // Add owners.db and users.db
+    int8 db_path[256];
+    snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, OWNERSHIP_DB);
+
+    // Append to file
+    FILE *ownership_file = fopen((char *)db_path, "a");
+
+    if (ownership_file == NULL)
+    {
+        perror("fopen");
+        return;
+    }
+
+    fprintf(ownership_file, "%s|%s\n", (char *)username, (char *)OWNERSHIP_DB);
+    fprintf(ownership_file, "%s|%s\n", (char *)username, (char *)USERS_DB);
+
+    fclose(ownership_file);
 
     printf("Admin created successfully!\n");
     fflush(stdout);
@@ -71,7 +89,8 @@ void create_admin(FILE *file)
 void login(Client *client, int8 *username, int8 *password)
 {
     // Check if already logged in
-    if (client->logged_in == 1) {
+    if (client->logged_in == 1)
+    {
         write_to_client(client, "ERR: Already logged in.\n");
         return;
     }
@@ -102,14 +121,18 @@ void login(Client *client, int8 *username, int8 *password)
 
         user.role = (strcmp(role_str, ROLE_ADMIN_NAME) == 0) ? ROLE_ADMIN : ROLE_USER;
 
-        if (strcmp(user.username, username) == 0) {
+        if (strcmp(user.username, username) == 0)
+        {
             fclose(file);
-            if (strcmp(user.password_hash, password) == 0) {
+            if (strcmp(user.password_hash, password) == 0)
+            {
                 strncpy(client->username, (char *)username, sizeof(client->username) - 1);
                 client->username[sizeof(client->username) - 1] = '\0';
                 client->logged_in = 1;
                 write_to_client(client, "OK: Logged in successfully.\n");
-            } else {
+            }
+            else
+            {
                 write_to_client(client, "ERR: Wrong password.\n");
             }
             return;
@@ -121,10 +144,10 @@ void login(Client *client, int8 *username, int8 *password)
     return;
 }
 
-void logout(Client *client) {
+void logout(Client *client)
+{
     client->logged_in = 0;
     write_to_client(client, "OK: Logged out successfully.\n");
     c_continuation = false;
     return;
 }
-
