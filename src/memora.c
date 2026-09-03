@@ -8,6 +8,18 @@
 bool s_continuation;
 bool c_continuation;
 
+static const char *BANNER =
+"███╗   ███╗███████╗███╗   ███╗ ██████╗ ██████╗  █████╗ \n"
+"████╗ ████║██╔════╝████╗ ████║██╔═══██╗██╔══██╗██╔══██╗\n"
+"██╔████╔██║█████╗  ██╔████╔██║██║   ██║██████╔╝███████║\n"
+"██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██║   ██║██╔══██╗██╔══██║\n"
+"██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║╚██████╔╝██║  ██║██║  ██║\n"
+"╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝\n"
+"---------------------------------------------------------\n"
+"MEMORA " MEMORA_VERSION "\n"
+"Created by " MEMORA_AUTHOR "\n"
+"---------------------------------------------------------\n";
+
 // Writes a NUL-terminated string to the client socket; no-op on an empty string.
 void write_to_client(Client *client, char *str)
 {
@@ -92,6 +104,21 @@ void logout_handler(Client *client, int32 argc, int8 argv[][64])
     logout(client);
 }
 
+void create_user_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *username = argv[0];
+    int8 *password = argv[1];
+
+    create_user(client, username, password);
+}
+
+void delete_user_handler(Client *client, int32 argc, int8 argv[][64])
+{
+    int8 *username = argv[0];
+
+    delete_user(client, username);
+}
+
 void create_database_handler(Client *client, int32 argc, int8 argv[][64])
 {
     int8 *db_name = argv[0];
@@ -172,6 +199,8 @@ CmdHandler handlers[] = {
     {(int8 *)"tree", 0, 0, tree_handler, true},
     {(int8 *)"login", 2, 2, login_handler},
     {(int8 *)"logout", 0, 0, logout_handler, true},
+    {(int8 *)"create-user", 2, 2, create_user_handler, true},
+    {(int8 *)"delete-user", 1, 1, delete_user_handler, true},
     {(int8 *)"search-node", 1, 1, search_node_handler, true},
     {(int8 *)"create-node", 1, 1, create_node_handler, true},
     {(int8 *)"remove-node", 1, 1, remove_node_handler, true},
@@ -341,6 +370,7 @@ void mainloop(int server_fd)
     {
         // Child Process - Handle that particular client
         c_continuation = true;
+        write_to_client(client, (char *)BANNER);
         write_to_client(client, "OK: Connected to Memora.\n");
 
         while (c_continuation)
@@ -386,12 +416,14 @@ void initserver(int16 port)
         perror("listen");
     }
 
+    printf(BANNER);
     printf("Server listening on port %d\n", port);
     fflush(stdout);
 
+    init();
+
     while (s_continuation)
     {
-        init();
         mainloop(server_fd);
     }
 }

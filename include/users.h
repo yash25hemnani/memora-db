@@ -4,15 +4,6 @@
 #include "utils.h"
 #include "memora.h"
 
-typedef enum
-{
-    ROLE_ADMIN,
-    ROLE_USER
-} UserRole;
-
-#define ROLE_ADMIN_NAME "admin"
-#define ROLE_USER_NAME  "user"
-
 typedef struct s_user
 {
     char username[64];
@@ -29,6 +20,8 @@ typedef struct s_ownership
 void init(void);
 void login(Client *client, int8 *username, int8 *password);
 void logout(Client *client);
+void create_user(Client *client, int8 *username, int8 *password);
+void delete_user(Client *client, int8 *username);
 
 #define DB_FOLDER "database"
 #define USERS_DB "users"

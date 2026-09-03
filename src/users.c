@@ -1,6 +1,8 @@
 #include "users.h"
 #include "memora.h"
 #include "database.h"
+#include <crypt.h>
+
 
 void init(void)
 {
@@ -60,7 +62,10 @@ void create_admin(FILE *file)
     prompt((int8 *)"Enter admin username: ", username, sizeof(username));
     prompt((int8 *)"Enter admin password: ", password, sizeof(password));
 
-    fprintf(file, "%s|%s|%s", (char *)username, (char *)password, ROLE_ADMIN_NAME);
+    int8 *salt = crypt_gensalt(NULL, 0, NULL, 0);
+    int8 *hash = crypt((char *)password, salt);
+
+    fprintf(file, "%s|%s|%s", (char *)username, hash, ROLE_ADMIN_NAME);
     fclose(file);
 
     // Add owners.db and users.db
@@ -83,6 +88,135 @@ void create_admin(FILE *file)
 
     printf("Admin created successfully!\n");
     fflush(stdout);
+    return;
+}
+
+void create_user(Client *client, int8 *username, int8 *password)
+{
+    if (!client->logged_in || client->role != ROLE_ADMIN)
+    {
+        write_to_client(client, "ERR: Only admin can add users.\n");
+        return;
+    }
+
+    int8 db_path[256];
+    snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, USERS_DB);
+
+    // Check for a duplicate username first
+    FILE *file = fopen((char *)db_path, "r");
+
+    if (file)
+    {
+        int8 line[256];
+        rewind(file);
+
+        while (fgets(line, sizeof(line), file))
+        {
+            User user;
+            char role_str[16];
+
+            sscanf(line, "%63[^|]|%127[^|]|%15[^\n]", user.username, user.password_hash, role_str);
+
+            if (strcmp(user.username, (char *)username) == 0)
+            {
+                fclose(file);
+                write_to_client(client, "ERR: Username already exists.\n");
+                return;
+            }
+        }
+
+        fclose(file);
+    }
+
+    file = fopen((char *)db_path, "a");
+
+    if (file == NULL)
+    {
+        perror("fopen");
+        write_to_client(client, "ERR: Could not create user.\n");
+        return;
+    }
+
+    int8 *salt = crypt_gensalt(NULL, 0, NULL, 0);
+    int8 *hash = crypt((char *)password, salt);
+
+    fprintf(file, "\n%s|%s|%s", (char *)username, hash, ROLE_USER_NAME);
+    fclose(file);
+
+    write_to_client(client, "OK: User created successfully.\n");
+    return;
+}
+
+void delete_user(Client *client, int8 *username)
+{
+    if (!client->logged_in || client->role != ROLE_ADMIN)
+    {
+        write_to_client(client, "ERR: Only admin can delete users.\n");
+        return;
+    }
+
+    if (strcmp((char *)username, client->username) == 0)
+    {
+        write_to_client(client, "ERR: Cannot delete the currently logged-in user.\n");
+        return;
+    }
+
+    int8 db_path[256];
+    snprintf((char *)db_path, sizeof(db_path), "%s/%s.db", DB_FOLDER, USERS_DB);
+
+    FILE *file = fopen((char *)db_path, "r");
+
+    if (!file)
+    {
+        write_to_client(client, "ERR: Users database not found.\n");
+        return;
+    }
+
+    int8 temp_file_name[256];
+    snprintf((char *)temp_file_name, sizeof(temp_file_name), "temp-%d.db", getpid());
+
+    FILE *temp = fopen((char *)temp_file_name, "w");
+
+    if (!temp)
+    {
+        fclose(file);
+        write_to_client(client, "ERR: Could not delete user.\n");
+        return;
+    }
+
+    int8 line[256];
+    bool found = false;
+
+    while (fgets(line, sizeof(line), file))
+    {
+        User user;
+        char role_str[16];
+
+        sscanf(line, "%63[^|]|%127[^|]|%15[^\n]", user.username, user.password_hash, role_str);
+
+        if (strcmp(user.username, (char *)username) == 0)
+        {
+            found = true;
+            continue;
+        }
+
+        fputs((char *)line, temp);
+    }
+
+    fclose(file);
+    fclose(temp);
+
+    if (!found)
+    {
+        remove((char *)temp_file_name);
+        write_to_client(client, "ERR: No such user exists.\n");
+        return;
+    }
+
+    remove((char *)db_path);
+    rename((char *)temp_file_name, (char *)db_path);
+
+    write_to_client(client, "OK: User deleted successfully.\n");
     return;
 }
 
@@ -124,11 +258,13 @@ void login(Client *client, int8 *username, int8 *password)
         if (strcmp(user.username, username) == 0)
         {
             fclose(file);
-            if (strcmp(user.password_hash, password) == 0)
+            char *hash = crypt((char *)password, user.password_hash);
+            if (strcmp(user.password_hash, hash) == 0)
             {
                 strncpy(client->username, (char *)username, sizeof(client->username) - 1);
                 client->username[sizeof(client->username) - 1] = '\0';
                 client->logged_in = 1;
+                client->role = user.role;
                 write_to_client(client, "OK: Logged in successfully.\n");
             }
             else

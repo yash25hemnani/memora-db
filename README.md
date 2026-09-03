@@ -22,11 +22,16 @@ eventually hold key/value **leaves**.
 
 - [Getting started](#getting-started)
 - [Command reference](#command-reference)
+- [Users & roles](#users--roles)
 - [Data structures](#data-structures)
 - [Project layout](#project-layout)
 - [Known limitations](#known-limitations)
 
 ## Getting started
+
+Needs libcrypt (`crypt.h` + `-lcrypt`) for password hashing — part of
+glibc/libxcrypt on most distros; install `libcrypt-dev` if yours splits it
+out separately.
 
 ```sh
 make            # builds build/memora
@@ -35,7 +40,8 @@ make            # builds build/memora
 
 On first run (no `database/users.db` yet), the server prompts on its own
 stdin/stdout to create the initial admin user before it starts accepting
-connections.
+connections — this happens exactly once, before `initserver()` ever calls
+`accept()`, never over the socket.
 
 Talk to it with any TCP client, e.g. `nc`:
 
@@ -75,6 +81,8 @@ Registered in `handlers[]` ([memora.c](src/memora.c)):
 | `ping` | 0 | no | Health check → `pong` |
 | `login` | `<username> <password>` | no | Authenticate the connection |
 | `logout` | 0 | yes | End the session |
+| `create-user` | `<username> <password>` | yes, admin only | Create a new user account |
+| `delete-user` | `<username>` | yes, admin only | Delete a user account (not the caller's own) |
 | `create-database` | `<name>` | yes | Create a new database, owned by the caller |
 | `use-database` | `<name>` | yes | Load a database's tree + hash table |
 | `delete-database` | `<name>` | yes | Delete a database owned by the caller |
@@ -89,6 +97,22 @@ Registered in `handlers[]` ([memora.c](src/memora.c)):
 | `update-leaf` | `<path> <key> <value>` | yes | Replace the value of an existing leaf |
 | `delete-leaf` | `<path> <key>` | yes | Remove a leaf from the node at `path` |
 | `print-leaves` | `<path>` | yes | Print all leaves on the node at `path` |
+
+## Users & roles
+
+Every user has a `UserRole` (`ROLE_ADMIN` or `ROLE_USER`, defined in
+[memora.h](include/memora.h)). `login` looks it up in `users.db` and caches
+it on the `Client` struct, so admin-gated handlers just check
+`client->role` instead of re-reading the users file on every command.
+
+- The first admin is bootstrapped once, interactively, on the server's own
+  stdin/stdout (`init()`/`create_admin()` in [users.c](src/users.c)) — never
+  over the wire.
+- Every account after that is managed by an already-authenticated admin, via
+  `create-user` / `delete-user`. `delete-user` also refuses to delete the
+  caller's own account, to avoid an accidental admin lockout.
+- `users.db` stores `username|password_hash|role` lines; passwords are
+  hashed with libc's `crypt()`, never stored or compared in plaintext.
 
 ## Data structures
 
@@ -164,8 +188,8 @@ c-database-design/
 
 ## Known limitations
 
-- Passwords are compared in plaintext (`password_hash` is a field name,
-  not an actual hash) and admin creation happens over the server's own
-  stdin, not over the wire.
+- No self-service signup — accounts only come from an admin running
+  `create-user`, or the one-time interactive admin bootstrap on first boot.
 - One process per connection, no locking — concurrent clients touching
-  the same database file can race.
+  the same database file (or `users.db`/`owners.db`) can race, including
+  two writers colliding on the same `temp-<pid>.db` rewrite target.

@@ -21,6 +21,18 @@
 #define HOST    "127.0.0.1"
 #define PORT    "8008"
 
+#define MEMORA_VERSION  "v1.0.0"
+#define MEMORA_AUTHOR   "Yash Hemnani"
+
+typedef enum
+{
+    ROLE_ADMIN,
+    ROLE_USER
+} UserRole;
+
+#define ROLE_ADMIN_NAME "admin"
+#define ROLE_USER_NAME  "user"
+
 struct s_client {
     int fd;
     char ip[16];
@@ -28,6 +40,7 @@ struct s_client {
     char username[64];
     int logged_in;
     char active_db[64];
+    UserRole role;
 };
 
 typedef struct s_client Client;
